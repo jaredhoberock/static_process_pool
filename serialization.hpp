@@ -427,6 +427,11 @@ class serializable_closure
       ar(sc.serialized_);
     }
 
+    inline friend std::istream& operator>>(std::istream& is, serializable_closure& sc)
+    {
+      return is >> sc.serialized_;
+    }
+
   private:
     template<class Function, class Tuple,
              class ApplyResult = decltype(apply(std::declval<Function&&>(), std::declval<Tuple&&>())),
