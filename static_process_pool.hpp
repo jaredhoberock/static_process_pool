@@ -8,6 +8,8 @@ class static_process_pool
 {
   public:
     // XXX consider an overload receiving an executor to actually create the processes
+    // XXX consider just using num_processes unused ports chosen by the server's kernel
+    //     the problem is we need to find a way to communicate that port back to this process
     inline explicit static_process_pool(std::size_t num_processes, int base_port = 71342)
       : next_worker_(0)
     {
