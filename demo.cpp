@@ -5,19 +5,19 @@ void hello()
   std::cout << "hello world from process " << this_process::get_id() << std::endl;
 }
 
-void goodbye()
-{
-  std::cout << "goodbye world from process " << this_process::get_id() << std::endl;
-}
-
 int main()
 {
   int port = 71342;
 
   // create a process pool
-  static_process_pool pool(1, port);
+  static_process_pool pool(2, port);
 
   pool.executor().execute(hello);
-  pool.executor().execute(goodbye);
+  pool.executor().execute(hello);
+
+  // wait for all processes in the pool to complete
+  pool.wait();
+
+  std::cout << "main() exiting" << std::endl;
 }
 
