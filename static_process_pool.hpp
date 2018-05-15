@@ -21,6 +21,12 @@ class static_process_pool
       }
     }
 
+    inline static_process_pool(static_process_pool&& other)
+      : static_process_pool(0, 0)
+    {
+      swap(other);
+    }
+
     static_process_pool(const static_process_pool&) = delete;
     static_process_pool& operator=(const static_process_pool&) = delete;
 
@@ -29,6 +35,13 @@ class static_process_pool
     {
       stop();
       wait();
+    }
+
+    void swap(static_process_pool& other)
+    {
+      std::swap(processes_, other.processes_);
+      std::swap(sockets_, other.sockets_);
+      std::swap(next_worker_, other.next_worker_);
     }
 
     // signal all work to complete
@@ -41,13 +54,8 @@ class static_process_pool
     // wait for all processes in the process pool to complete
     inline void wait()
     {
-      for(auto& process : processes_)
-      {
-        if(process.joinable())
-        {
-          process.join();
-        }
-      }
+      stop();
+      processes_.clear();
     }
 
     class executor_type
@@ -56,7 +64,7 @@ class static_process_pool
         template<class Function>
         void execute(Function&& f) const noexcept
         {
-          return pool_.execute(std::forward<Function>(f));
+          pool_.execute(std::forward<Function>(f));
         }
 
       private:
@@ -77,19 +85,15 @@ class static_process_pool
   private:
     static void serve(int port)
     {
+      // XXX consider introducing socket_istream
       read_socket socket(port);
-      file_descriptor_istream is(socket.release());
+      file_descriptor_istream is(socket.get());
 
-      while(!is.eof())
+      active_message message;
+
+      // read and activate messages until we run out
+      while(is >> message)
       {
-        active_message message;
-
-        {
-          input_archive ar(is);
-
-          ar(message);
-        }
-
         message.activate();
       }
     }
@@ -97,11 +101,12 @@ class static_process_pool
     template<class Function>
     void execute(Function&& f)
     {
+      // XXX consider introducing socket_ostream
       // create an ostream to communicate with the next worker 
       file_descriptor_ostream os(sockets_[next_worker_].get());
 
       // turn f into an active_message and write it to the ostream
-      os << to_string(active_message(std::forward<Function>(f)));
+      os << active_message(std::forward<Function>(f));
 
       // round robin through workers
       ++next_worker_;     
