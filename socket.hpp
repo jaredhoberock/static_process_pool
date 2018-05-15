@@ -36,13 +36,64 @@
 #include <iostream>
 #include <exception>
 
-class listening_socket
+class basic_socket
+{
+  public:
+    basic_socket(const basic_socket&) = delete;
+    basic_socket& operator=(const basic_socket&) = delete;
+
+    basic_socket(basic_socket&& other)
+      : file_descriptor_(-1)
+    {
+      swap(other);
+    }
+    
+    ~basic_socket()
+    {
+      if(file_descriptor_ != -1)
+      {
+        if(close(file_descriptor_) == -1)
+        {
+          std::cerr << std::system_error(errno, std::system_category(), "basic_socket dtor: Error after close()").what() << std::endl;
+          std::terminate();
+        }
+      }
+    }
+
+    void swap(basic_socket& other) noexcept
+    {
+      std::swap(file_descriptor_, other.file_descriptor_);
+    }
+
+    int get() const noexcept
+    {
+      return file_descriptor_;
+    }
+
+    int release() noexcept
+    {
+      int result = -1;
+      std::swap(file_descriptor_, result);
+      return result;
+    }
+
+  protected:
+    basic_socket(int file_descriptor)
+      : file_descriptor_(file_descriptor)
+    {}
+
+  private:
+    int file_descriptor_;
+};
+
+
+class listening_socket : public basic_socket
 {
   public:
     listening_socket(int port)
-      : file_descriptor_(socket(AF_INET, SOCK_STREAM, 0))
+      : basic_socket(socket(AF_INET, SOCK_STREAM, 0))
     {
-      if(file_descriptor_ == -1)
+      if(get() == -1)
       {
         throw std::system_error(errno, std::system_category(), "listening_socket ctor: Error after socket()");
       }
@@ -50,7 +101,7 @@ class listening_socket
       // this ensures that closing the socket allows the port to be reused immediately
       // if other processes were using the port previously, the bind() call below may fail without this option set
       int yes = 1;
-      if(setsockopt(file_descriptor_, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
+      if(setsockopt(get(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
       {
         throw std::system_error(errno, std::system_category(), "listening_socket ctor: Error after setsockopt()");
       }
@@ -62,103 +113,45 @@ class listening_socket
       server_address.sin_port = port;
 
       // bind the socket to our selected port
-      if(bind(file_descriptor_, reinterpret_cast<const sockaddr*>(&server_address), sizeof(server_address)) == -1)
+      if(bind(get(), reinterpret_cast<const sockaddr*>(&server_address), sizeof(server_address)) == -1)
       {
         throw std::system_error(errno, std::system_category(), "listening_socket ctor: Error after bind()");
       }
 
       // make this socket a listening socket, listen for a single connection
-      if(listen(file_descriptor_, 1) == -1)
+      if(listen(get(), 1) == -1)
       {
         throw std::system_error(errno, std::system_category(), "listening_socket ctor: Error after listen()");
       }
     }
-
-    listening_socket(listening_socket&& other)
-      : file_descriptor_(-1)
-    {
-      std::swap(file_descriptor_, other.file_descriptor_);
-    }
-
-    ~listening_socket()
-    {
-      if(file_descriptor_ != -1)
-      {
-        if(close(file_descriptor_) == -1)
-        {
-          std::cerr << "listening_socket dtor: Error after close()" << std::endl;
-          std::terminate();
-        }
-      }
-    }
-
-    int get()
-    {
-      return file_descriptor_;
-    }
-
-  private:
-    int file_descriptor_;
 };
 
-class read_socket
+
+class read_socket : public basic_socket
 {
   public:
     read_socket(listening_socket listener)
-      : file_descriptor_(accept(listener.get(), nullptr, nullptr))
+      : basic_socket(accept(listener.get(), nullptr, nullptr))
     {
-      if(file_descriptor_ == -1)
+      if(get() == -1)
       {
         throw std::system_error(errno, std::system_category(), "make_read_socket(): Error after listen()");
-      }
-    }
-
-    read_socket(read_socket&& other)
-      : file_descriptor_(-1)
-    {
-      std::swap(file_descriptor_, other.file_descriptor_);
-    }
-
-    ~read_socket()
-    {
-      if(file_descriptor_ != -1)
-      {
-        if(close(file_descriptor_) == -1)
-        {
-          std::cerr << "read_socket dtor: Error after close()" << std::endl;
-          std::terminate();
-        }
       }
     }
 
     read_socket(int port)
       : read_socket(listening_socket(port))
     {}
-
-    int get() const
-    {
-      return file_descriptor_;
-    }
-
-    int release()
-    {
-      int result = -1;
-      std::swap(file_descriptor_, result);
-      return result;
-    }
-
-  private:
-    int file_descriptor_;
 };
 
 
-class write_socket
+class write_socket : public basic_socket
 {
   public:
     write_socket(const char* hostname, int port)
-      : file_descriptor_(socket(AF_INET, SOCK_STREAM, 0))
+      : basic_socket(socket(AF_INET, SOCK_STREAM, 0))
     {
-      if(file_descriptor_ == -1)
+      if(get() == -1)
       {
         throw std::system_error(errno, std::system_category(), "write_socket ctor: Error after socket()");
       }
@@ -179,7 +172,7 @@ class write_socket
       // keep attempting a connection while the server refuses
       int attempt = 0;
       int connect_result = 0;
-      while((connect_result = connect(file_descriptor_, reinterpret_cast<sockaddr*>(&server_address), sizeof(server_address))) == -1 && attempt < 1000)
+      while((connect_result = connect(get(), reinterpret_cast<sockaddr*>(&server_address), sizeof(server_address))) == -1 && attempt < 1000)
       {
         if(errno != ECONNREFUSED)
         {
@@ -194,18 +187,5 @@ class write_socket
         throw std::system_error(errno, std::system_category(), "write_socket ctor: Error after connect()");
       }
     }
-
-    ~write_socket()
-    {
-      close(file_descriptor_);
-    }
-
-    int get() const
-    {
-      return file_descriptor_;
-    }
-
-  private:
-    int file_descriptor_;
 };
 
