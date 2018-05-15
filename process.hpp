@@ -51,7 +51,11 @@ class process
     process(const process&) = delete;
     process& operator=(const process&) = delete;
 
-    process(process&&) = default;
+    process(process&& other)
+      : id_(-1)
+    {
+      swap(other);
+    }
 
     inline ~process() noexcept
     {
@@ -90,6 +94,7 @@ class process
     inline void swap(process& other) noexcept
     {
       std::swap(id_, other.id_);
+      std::swap(hostname_, other.hostname_);
     }
 
   private:
