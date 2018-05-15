@@ -38,11 +38,20 @@ class process
     using id = pid_t;
 
     // consider adding an overload which takes an executor which creates new processes
-    template<class Function, class... Args>
+    template<class Function, class... Args,
+             __REQUIRES(can_serialize_all<Function,Args...>::value),
+             __REQUIRES(can_deserialize_all<Function,Args...>::value),
+             __REQUIRES(is_invocable<Function,Args...>::value)
+            >
     process(Function&& f, Args&&... args)
     {
       std::tie(id_, hostname_) = create_process_with_executor(std::forward<Function>(f), std::forward<Args>(args)...);
     }
+
+    process(const process&) = delete;
+    process& operator=(const process&) = delete;
+
+    process(process&&) = default;
 
     inline ~process() noexcept
     {
