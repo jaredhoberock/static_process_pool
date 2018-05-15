@@ -38,10 +38,10 @@ class process
     using id = pid_t;
 
     // consider adding an overload which takes an executor which creates new processes
-    template<class Function>
-    process(Function&& f)
+    template<class Function, class... Args>
+    process(Function&& f, Args&&... args)
     {
-      std::tie(id_, hostname_) = create_process_with_executor(std::forward<Function>(f));
+      std::tie(id_, hostname_) = create_process_with_executor(std::forward<Function>(f), std::forward<Args>(args)...);
     }
 
     inline ~process() noexcept
@@ -84,11 +84,18 @@ class process
     }
 
   private:
-    template<class Function>
-    static std::pair<id, std::string> create_process_with_executor(Function&& f)
+    template<class Function, class... Args>
+    static std::pair<id, std::string> create_process_with_executor(Function&& f, Args&&... args)
     {
       new_posix_process_executor ex;
-      ex.execute(std::forward<Function>(f));
+
+      // bind together the function and its arguments into a function with no arguments
+      auto g = ex.query(binder)(std::forward<Function>(f), std::forward<Args>(args)...);
+
+      // execute the function in a new process
+      ex.execute(std::move(g));
+
+      // return the new process's id and name of its host
       return std::make_pair(ex.query(last_created_process_id), ex.query(last_created_process_hostname));
     }
 

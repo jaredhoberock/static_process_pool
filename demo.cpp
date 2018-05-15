@@ -6,10 +6,8 @@
 
 // XXX next step: make a single server static_process_pool
 
-void server_function()
+void server_function(int port)
 {
-  int port = 71342;
-
   read_socket socket(port);
   file_descriptor_istream is(socket.release());
   
@@ -43,7 +41,7 @@ int main()
   int port = 71342;
 
   // start a server process
-  process server(server_function);
+  process server(server_function, port);
 
   write_socket writer(server.get_hostname().c_str(), port);
   file_descriptor_ostream os(writer.get());
