@@ -61,6 +61,18 @@ class active_message
       ar(self.message_);
     }
 
+    friend std::istream& operator>>(std::istream& is, active_message& message)
+    {
+      input_archive ar(is);
+      ar(message);
+      return is;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const active_message& message)
+    {
+      return os << to_string(message);
+    }
+
   private:
     serializable_closure message_;
 };
