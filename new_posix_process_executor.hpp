@@ -35,6 +35,7 @@
 #include <utility>
 #include <algorithm>
 
+#include "serialization.hpp"
 #include "active_message.hpp"
 
 
@@ -197,6 +198,15 @@ struct last_created_process_hostname_t
 constexpr last_created_process_hostname_t last_created_process_hostname{};
 
 
+struct binder_t
+{
+  static constexpr bool is_requirable = false;
+  static constexpr bool is_preferable = false;
+};
+
+constexpr binder_t binder{};
+
+
 class new_posix_process_executor
 {
   public:
@@ -214,6 +224,20 @@ class new_posix_process_executor
     {
       return last_created_process_hostname_;
     }
+
+    struct binder
+    {
+      template<class Function, class... Args>
+      serializable_closure operator()(Function&& f, Args&&... args) const
+      {
+        return serializable_closure(std::forward<Function>(f), std::forward<Args>(args)...);
+      }
+    };
+
+    binder query(binder_t) const
+    {
+      return binder{};
+    };
 
     template<class Function>
     void execute(Function&& f) const
