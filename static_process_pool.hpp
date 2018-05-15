@@ -13,13 +13,13 @@ class static_process_pool
     inline explicit static_process_pool(std::size_t num_processes, int base_port = 71342)
       : next_worker_(0)
     {
-      for(std::size_t i = 0; i < num_processes; ++i, ++base_port)
+      for(int port = base_port; port != base_port + num_processes; ++port)
       {
         // create a new process listening on base_port
-        processes_.emplace_back(serve, base_port);
+        processes_.emplace_back(serve, port);
 
         // create a new socket for writing to base_port
-        sockets_.emplace_back(processes_.back().get_hostname().c_str(), base_port);
+        sockets_.emplace_back(processes_.back().get_hostname().c_str(), port);
       }
     }
 
