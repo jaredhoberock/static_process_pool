@@ -148,7 +148,7 @@ class read_socket : public basic_socket
 class write_socket : public basic_socket
 {
   public:
-    write_socket(const char* hostname, int port)
+    write_socket(const char* hostname, int port, std::size_t max_num_connection_attempts = 1000)
       : basic_socket(socket(AF_INET, SOCK_STREAM, 0))
     {
       if(get() == -1)
@@ -170,16 +170,16 @@ class write_socket : public basic_socket
       server_address.sin_port = port;
 
       // keep attempting a connection while the server refuses
-      int attempt = 0;
+      int num_connection_attempts = 0;
       int connect_result = 0;
-      while((connect_result = connect(get(), reinterpret_cast<sockaddr*>(&server_address), sizeof(server_address))) == -1 && attempt < 1000)
+      while((connect_result = connect(get(), reinterpret_cast<sockaddr*>(&server_address), sizeof(server_address))) == -1 && num_connection_attempts < max_num_connection_attempts)
       {
         if(errno != ECONNREFUSED)
         {
           throw std::system_error(errno, std::system_category(), "write_socket ctor: Error after connect()");
         }
 
-        ++attempt;
+        ++num_connection_attempts;
       }
 
       if(connect_result == -1)
