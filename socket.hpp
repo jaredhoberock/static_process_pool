@@ -90,8 +90,9 @@ class basic_socket
 class listening_socket : public basic_socket
 {
   public:
-    listening_socket(int port)
-      : basic_socket(socket(AF_INET, SOCK_STREAM, 0))
+    listening_socket(int desired_port)
+      : basic_socket(socket(AF_INET, SOCK_STREAM, 0)),
+        port_(-1)
     {
       if(get() == -1)
       {
@@ -110,9 +111,9 @@ class listening_socket : public basic_socket
 
       server_address.sin_family = AF_INET;
       server_address.sin_addr.s_addr = INADDR_ANY;
-      server_address.sin_port = port;
+      server_address.sin_port = htons(desired_port);
 
-      // bind the socket to our selected port
+      // bind the socket to our desired port
       if(bind(get(), reinterpret_cast<const sockaddr*>(&server_address), sizeof(server_address)) == -1)
       {
         throw std::system_error(errno, std::system_category(), "listening_socket ctor: Error after bind()");
@@ -123,7 +124,25 @@ class listening_socket : public basic_socket
       {
         throw std::system_error(errno, std::system_category(), "listening_socket ctor: Error after listen()");
       }
+
+      // figure out which port we were assigned
+      socklen_t len = sizeof(server_address);
+      if(getsockname(get(), reinterpret_cast<sockaddr*>(&server_address), &len) == -1)
+      {
+        throw std::system_error(errno, std::system_category(), "listening_socket ctor: Error after getsockname()");
+      }
+
+      // note the port
+      port_ = ntohs(server_address.sin_port);
     }
+
+    inline int port() const noexcept
+    {
+      return port_;
+    }
+
+  private:
+    int port_;
 };
 
 
@@ -131,17 +150,26 @@ class read_socket : public basic_socket
 {
   public:
     read_socket(listening_socket listener)
-      : basic_socket(accept(listener.get(), nullptr, nullptr))
+      : basic_socket(accept(listener.get(), nullptr, nullptr)),
+        port_(listener.port())
     {
       if(get() == -1)
       {
-        throw std::system_error(errno, std::system_category(), "make_read_socket(): Error after listen()");
+        throw std::system_error(errno, std::system_category(), "read_socket ctor: Error after accept()");
       }
     }
 
-    read_socket(int port)
-      : read_socket(listening_socket(port))
+    read_socket(int desired_port)
+      : read_socket(listening_socket(desired_port))
     {}
+
+    inline int port() const noexcept
+    {
+      return port_;
+    }
+
+  private:
+    int port_;
 };
 
 
@@ -167,7 +195,7 @@ class write_socket : public basic_socket
 
       server_address.sin_family = AF_INET;
       std::memcpy(&server_address.sin_addr.s_addr, server->h_addr, server->h_length);
-      server_address.sin_port = port;
+      server_address.sin_port = htons(port);
 
       // keep attempting a connection while the server refuses
       int num_connection_attempts = 0;
