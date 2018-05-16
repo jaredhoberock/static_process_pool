@@ -7,10 +7,8 @@ void hello()
 
 int main()
 {
-  int port = 71342;
-
-  // create a process pool
-  static_process_pool pool(10, port);
+  // create a pool of ten processes
+  static_process_pool pool(10);
 
   pool.executor().execute(hello);
   pool.executor().execute(hello);
