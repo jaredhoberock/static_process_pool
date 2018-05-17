@@ -30,45 +30,48 @@
 #include "tuple.hpp"
 
 
-class active_message
+template<class Result>
+class basic_active_message
 {
   public:
-    active_message() = default;
+    using result_type = Result;
+
+    basic_active_message() = default;
 
     template<class Function, class... Args,
              __REQUIRES(can_serialize_all<Function,Args...>::value),
              __REQUIRES(can_deserialize_all<Function,Args...>::value),
              __REQUIRES(is_invocable<Function,Args...>::value)
             >
-    explicit active_message(Function func, Args... args)
+    explicit basic_active_message(Function func, Args... args)
       : message_(func, args...)
     {}
 
-    any activate() const
+    result_type activate() const
     {
-      return message_();
+      return any_cast<result_type>(message_());
     }
 
     template<class OutputArchive>
-    friend void serialize(OutputArchive& ar, const active_message& self)
+    friend void serialize(OutputArchive& ar, const basic_active_message& self)
     {
       ar(self.message_);
     }
 
     template<class InputArchive>
-    friend void deserialize(InputArchive& ar, active_message& self)
+    friend void deserialize(InputArchive& ar, basic_active_message& self)
     {
       ar(self.message_);
     }
 
-    friend std::istream& operator>>(std::istream& is, active_message& message)
+    friend std::istream& operator>>(std::istream& is, basic_active_message& message)
     {
       input_archive ar(is);
       ar(message);
       return is;
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const active_message& message)
+    friend std::ostream& operator<<(std::ostream& os, const basic_active_message& message)
     {
       return os << to_string(message);
     }
@@ -76,6 +79,9 @@ class active_message
   private:
     serializable_closure message_;
 };
+
+
+using active_message = basic_active_message<any>;
 
 
 class two_sided_active_message : private active_message
