@@ -50,6 +50,11 @@ class file_descriptor_ostream : public std::ostream
       rdbuf(&buffer_);
     }
 
+    inline int file_descriptor() const noexcept
+    {
+      return buffer_.file_descriptor();
+    }
+
   private:
     class file_descriptor_buffer : public std::streambuf
     {
@@ -79,11 +84,35 @@ class file_descriptor_ostream : public std::ostream
           return ::write(fd_, s, num);
         }
 
+        inline int file_descriptor() const noexcept
+        {
+          return fd_;
+        }
+
       private:
         int fd_;
     };
 
     file_descriptor_buffer buffer_;
+};
+
+
+class owning_file_descriptor_ostream : public file_descriptor_ostream
+{
+  public:
+    using file_descriptor_ostream::file_descriptor_ostream;
+
+    virtual ~owning_file_descriptor_ostream()
+    {
+      if(file_descriptor() != -1)
+      {
+        if(close(file_descriptor()) == -1)
+        {
+          std::cerr << std::system_error(errno, std::system_category(), "owning_file_descriptor_ostream dtor: Error after close()").what() << std::endl;
+          std::terminate();
+        }
+      }
+    }
 };
 
 
