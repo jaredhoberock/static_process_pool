@@ -28,6 +28,7 @@
 
 #include <iostream>
 #include <tuple>
+#include <utility>
 #include <string>
 #include <typeinfo>
 #include <sstream>
@@ -108,6 +109,20 @@ void deserialize(InputArchive& ar, std::string& s)
   // read characters from the stream
   ar.stream().read(&s.front(), length);
 }
+
+
+template<class OutputArchive, class T1, class T2>
+void serialize(OutputArchive& ar, const std::pair<T1,T2>& p)
+{
+  ar(p.first, p.second);
+}
+
+template<class InputArchive, class T1, class T2>
+void deserialize(InputArchive& ar, std::pair<T1,T2>& p)
+{
+  ar(p.first, p.second);
+}
+         
 
 
 template<size_t Index, class OutputArchive, class... Ts, __REQUIRES(Index == sizeof...(Ts))>
