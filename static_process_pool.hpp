@@ -42,7 +42,7 @@ class static_process_pool
     {
       for(std::size_t i = 0; i < num_processes; ++i)
       {
-        // create a socket to listen for the remote port number for each process
+        // create a socket to listen for reply from each process
         listening_socket listener(0);
 
         // create a new process
@@ -50,12 +50,14 @@ class static_process_pool
 
         // create a socket to receive a message from the process to establish our own twoway connection
         read_socket reader(std::move(listener));
-        file_descriptor_istream is(reader.get());
 
-        // receive a message from the process, which, when activated
+        // turn that socket into an istream
+        istream_ptrs_.emplace_back(new file_descriptor_istream(reader.release()));
+
+        // receive a message from the process which, when activated,
         // creates a new ostream connected to the process
         basic_active_message<std::ostream*> make_ostream;
-        is >> make_ostream;
+        *istream_ptrs_.back() >> make_ostream;
 
         // make a new ostream to use to communicate with the process
         ostream_ptrs_.emplace_back(make_ostream.activate());
@@ -89,7 +91,11 @@ class static_process_pool
     inline void stop()
     {
       // destroy each output stream
+      // this signals the processes to stop
       ostream_ptrs_.clear();
+
+      // destroy each input stream for consistency
+      istream_ptrs_.clear();
     }
 
     // wait for all processes in the process pool to complete
@@ -187,6 +193,7 @@ class static_process_pool
 
     std::vector<process> processes_;
     std::vector<std::unique_ptr<std::ostream>> ostream_ptrs_;
+    std::vector<std::unique_ptr<std::istream>> istream_ptrs_;
     std::size_t next_worker_;
 };
 
