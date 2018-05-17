@@ -222,3 +222,22 @@ class file_descriptor_istream : public std::istream
 //     but not so for buffer_size_
 const int file_descriptor_istream::file_descriptor_buffer::putback_size_;
 
+
+class owning_file_descriptor_istream : public file_descriptor_istream
+{
+  public:
+    using file_descriptor_istream::file_descriptor_istream;
+
+    virtual ~owning_file_descriptor_istream()
+    {
+      if(file_descriptor() != -1)
+      {
+        if(close(file_descriptor()) == -1)
+        {
+          std::cerr << std::system_error(errno, std::system_category(), "owning_file_descriptor_istream dtor: Error after close()").what() << std::endl;
+          std::terminate();
+        }
+      }
+    }
+};
+
