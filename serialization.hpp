@@ -309,6 +309,12 @@ class any
     std::string representation_;
 };
 
+template<>
+any any_cast(const any& self)
+{
+  return self;
+}
+
 
 template<class OutputArchive>
 void serialize(OutputArchive& ar, const any& a)
