@@ -29,6 +29,7 @@
 #include "file_descriptor_stream.hpp"
 
 #include <vector>
+#include <memory>
 
 class static_process_pool
 {
@@ -43,18 +44,19 @@ class static_process_pool
         listening_socket listener(0);
 
         // create a new process
-        processes_.emplace_back(serve, this_process::hostname(), listener.port());
+        processes_.emplace_back(serve, basic_active_message<std::ostream*>(make_ostream_to_host, this_process::hostname(), listener.port()));
 
-        // create a socket to read the remote port number for each process
+        // create a socket to receive a message from the process
         read_socket reader(std::move(listener));
         file_descriptor_istream is(reader.get());
 
-        // get the process's port number 
-        int remote_port = -1;
-        is >> remote_port;
+        // receive a message from the process, which, when activated
+        // creates a new ostream connected to the process
+        basic_active_message<std::ostream*> make_ostream;
+        is >> make_ostream;
 
-        // create a new socket for writing to the remote port
-        sockets_.emplace_back(processes_.back().get_hostname().c_str(), remote_port);
+        // make a new ostream to use to communicate with the process
+        ostream_ptrs_.emplace_back(make_ostream.activate());
       }
     }
 
@@ -77,15 +79,15 @@ class static_process_pool
     void swap(static_process_pool& other)
     {
       std::swap(processes_, other.processes_);
-      std::swap(sockets_, other.sockets_);
+      std::swap(ostream_ptrs_, other.ostream_ptrs_);
       std::swap(next_worker_, other.next_worker_);
     }
 
     // signal all work to complete
     inline void stop()
     {
-      // destroy each write socket
-      sockets_.clear();
+      // destroy each output stream
+      ostream_ptrs_.clear();
     }
 
     // wait for all processes in the process pool to complete
@@ -120,17 +122,28 @@ class static_process_pool
     }
 
   private:
-    static void serve(std::string client_hostname, int client_port)
+    static std::ostream* make_ostream_to_host(const std::string& hostname, int port)
+    {
+      // create a new socket for writing to the host's port
+      write_socket ws(hostname.c_str(), port);
+
+      // turn that socket into a newly-created ostream
+      return new owning_file_descriptor_ostream(ws.release());
+    }
+
+    static void serve(basic_active_message<std::ostream*> make_ostream_to_client)
     {
       // create a socket to listen for messages from the client
       listening_socket listener(0);
       
-      // tell the client what port the server will listen on
+      // send the client an active message which, when activated on the client,
+      // establishes an ostream connected to this server
       {
-        write_socket ws(client_hostname.c_str(), client_port);
-        file_descriptor_ostream os(ws.get());
+        // create an ostream to the client
+        std::unique_ptr<std::ostream> os_ptr(make_ostream_to_client.activate());
 
-        os << listener.port();
+        active_message message(make_ostream_to_host, this_process::hostname(), listener.port());
+        *os_ptr << message;
       }
 
       // turn the listener into a reader
@@ -149,12 +162,8 @@ class static_process_pool
     template<class Function>
     void execute(Function&& f)
     {
-      // XXX consider introducing socket_ostream
-      // create an ostream to communicate with the next worker 
-      file_descriptor_ostream os(sockets_[next_worker_].get());
-
-      // turn f into an active_message and write it to the ostream
-      os << active_message(std::forward<Function>(f));
+      // turn f into an active_message and write it to the next worker's ostream
+      *ostream_ptrs_[next_worker_] << active_message(std::forward<Function>(f));
 
       // round robin through workers
       ++next_worker_;     
@@ -162,7 +171,7 @@ class static_process_pool
     };
 
     std::vector<process> processes_;
-    std::vector<write_socket> sockets_;
+    std::vector<std::unique_ptr<std::ostream>> ostream_ptrs_;
     std::size_t next_worker_;
 };
 
