@@ -33,6 +33,8 @@
 
 class static_process_pool
 {
+  using twoway_connection = std::pair<std::istream*, std::ostream*>;
+
   public:
     // XXX consider an overload receiving an executor to actually create the processes
     inline explicit static_process_pool(std::size_t num_processes)
@@ -44,9 +46,9 @@ class static_process_pool
         listening_socket listener(0);
 
         // create a new process
-        processes_.emplace_back(serve, basic_active_message<std::ostream*>(make_ostream_to_host, this_process::hostname(), listener.port()));
+        processes_.emplace_back(serve, basic_active_message<twoway_connection>(make_twoway_connection_on_server, this_process::hostname(), listener.port()));
 
-        // create a socket to receive a message from the process
+        // create a socket to receive a message from the process to establish our own twoway connection
         read_socket reader(std::move(listener));
         file_descriptor_istream is(reader.get());
 
@@ -131,24 +133,37 @@ class static_process_pool
       return new owning_file_descriptor_ostream(ws.release());
     }
 
-    static void serve(basic_active_message<std::ostream*> make_ostream_to_client)
+    static twoway_connection make_twoway_connection_on_server(const std::string& client_hostname, int client_port)
     {
       // create a socket to listen for messages from the client
       listening_socket listener(0);
       
-      // send the client an active message which, when activated on the client,
-      // establishes an ostream connected to this server
-      {
-        // create an ostream to the client
-        std::unique_ptr<std::ostream> os_ptr(make_ostream_to_client.activate());
+      // create an ostream to the client
+      std::unique_ptr<std::ostream> os_ptr(make_ostream_to_host(client_hostname, client_port));
 
-        active_message message(make_ostream_to_host, this_process::hostname(), listener.port());
-        *os_ptr << message;
-      }
+      // send the client an active message which, when activated on the client,
+      // establishes an ostream connected from the client to this server
+      active_message message(make_ostream_to_host, this_process::hostname(), listener.port());
+      *os_ptr << message;
 
       // turn the listener into a reader
       read_socket reader(std::move(listener));
-      file_descriptor_istream is(reader.get());
+
+      // create an istream from the client
+      std::unique_ptr<std::istream> is_ptr(new owning_file_descriptor_istream(reader.release()));
+
+      return std::make_pair(is_ptr.release(), os_ptr.release());
+    }
+
+    static void serve(basic_active_message<twoway_connection> make_twoway_connection_to_client)
+    {
+      // establish a two-way connection to the client
+      auto stream_ptrs = make_twoway_connection_to_client.activate();
+
+      std::unique_ptr<std::istream> is_ptr(stream_ptrs.first);
+      std::unique_ptr<std::ostream> os_ptr(stream_ptrs.second);
+
+      std::istream& is = *is_ptr;
 
       active_message message;
 
