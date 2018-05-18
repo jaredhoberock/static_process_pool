@@ -406,19 +406,15 @@ using can_deserialize_all = conjunction<can_deserialize<Ts>...>;
 
 
 
+// XXX a better name for this would be basic_serializable_function
 template<class Result>
 class basic_serializable_closure
 {
   private:
     static_assert(can_deserialize<Result>::value, "Result must be deserializable.");
 
-    static Result make_result() { return Result{}; }
-
   public:
-    template<__REQUIRES(std::is_default_constructible<Result>::value)>
-    basic_serializable_closure()
-      : basic_serializable_closure(&make_result)
-    {}
+    basic_serializable_closure() = default;
 
     template<class Function, class... Args,
              // must be able to serialize and deserialize all these constructor arguments
@@ -434,6 +430,11 @@ class basic_serializable_closure
     explicit basic_serializable_closure(Function func, Args... args)
       : serialized_(serialize_function_and_arguments(&deserialize_and_invoke<Function,Args...>, func, args...))
     {}
+
+    explicit operator bool() const noexcept
+    {
+      return !serialized_.empty();
+    }
 
     Result operator()() const
     {
