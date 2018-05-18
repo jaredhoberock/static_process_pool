@@ -198,7 +198,7 @@ class write_socket : public basic_socket
       server_address.sin_port = htons(port);
 
       // keep attempting a connection while the server refuses
-      int num_connection_attempts = 0;
+      std::size_t num_connection_attempts = 0;
       int connect_result = 0;
       while((connect_result = connect(get(), reinterpret_cast<sockaddr*>(&server_address), sizeof(server_address))) == -1 && num_connection_attempts < max_num_connection_attempts)
       {
