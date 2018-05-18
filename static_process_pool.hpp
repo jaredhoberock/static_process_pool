@@ -157,14 +157,12 @@ class static_process_pool
 
       // send the client an active message which, when activated on the client,
       // establishes an ostream connected from the client to this server
-      basic_active_message<std::ostream*> message(make_ostream_to_host, this_process::hostname(), listener.port());
-
-      *os_ptr << message;
+      *os_ptr << make_active_message(make_ostream_to_host, this_process::hostname(), listener.port());
 
       // turn the listener into a reader
       read_socket reader(std::move(listener));
 
-      // create an istream from the client
+      // create an istream for incoming requests from the client
       std::unique_ptr<std::istream> is_ptr(new owning_file_descriptor_istream(reader.release()));
 
       return std::make_pair(is_ptr.release(), os_ptr.release());

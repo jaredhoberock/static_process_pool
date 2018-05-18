@@ -90,6 +90,22 @@ class basic_active_message
 };
 
 
+template<class... UnboundArgs, class Function, class... BoundArgs>
+basic_active_message<
+  invoke_result_t<Function, BoundArgs..., UnboundArgs...>,
+  UnboundArgs...
+>
+  make_active_message(Function f, BoundArgs... args)
+{
+  using result_type = basic_active_message<
+    invoke_result_t<Function, BoundArgs..., UnboundArgs...>,
+    UnboundArgs...
+  >;
+
+  return result_type(f, args...);
+}
+
+
 using active_message = basic_active_message<any>;
 
 
