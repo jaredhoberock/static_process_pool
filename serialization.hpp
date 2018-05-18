@@ -410,7 +410,7 @@ template<class Result, class... UnboundArgs>
 class basic_serializable_function
 {
   private:
-    static_assert(can_deserialize<Result>::value, "Result must be deserializable.");
+    static_assert(std::is_void<Result>::value or can_deserialize<Result>::value, "Result must be void or deserializable.");
 
   public:
     basic_serializable_function() = default;
@@ -504,7 +504,7 @@ class basic_serializable_function
       std::tuple<BoundArgs...> bound_arguments = tail(function_and_bound_args);
 
       // concatenate the bound and unbounded arguments into a single list of arguments
-      std::tuple<BoundArgs...,UnboundArgs...> arguments = std::tuple_cat(bound_arguments, std::make_tuple(unbound_args...));
+      std::tuple<BoundArgs...,UnboundArgs...> arguments = std::tuple_cat(bound_arguments, std::tuple<UnboundArgs...>(unbound_args...));
 
       return apply_and_return_result(f, arguments);
     }
@@ -526,6 +526,22 @@ class basic_serializable_function
 
     std::string serialized_;
 };
+
+
+template<class... UnboundArgs, class Function, class... BoundArgs>
+basic_serializable_function<
+  invoke_result_t<Function, BoundArgs..., UnboundArgs...>,
+  UnboundArgs...
+>
+  make_serializable_function(Function f, BoundArgs... bound_args)
+{
+  using result_type = basic_serializable_function<
+    invoke_result_t<Function, BoundArgs..., UnboundArgs...>,
+    UnboundArgs...
+  >;
+
+  return result_type(f, bound_args...);
+}
 
 
 using serializable_function = basic_serializable_function<any>;
