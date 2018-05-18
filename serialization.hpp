@@ -415,19 +415,19 @@ class basic_serializable_function
   public:
     basic_serializable_function() = default;
 
-    template<class Function, class... Args,
+    template<class Function, class... BoundArgs,
              // must be able to serialize and deserialize all these constructor arguments
-             __REQUIRES(can_serialize_all<Function,Args...>::value),
-             __REQUIRES(can_deserialize_all<Function,Args...>::value),
+             __REQUIRES(can_serialize_all<Function,BoundArgs...>::value),
+             __REQUIRES(can_deserialize_all<Function,BoundArgs...>::value),
 
              // the function needs to be invocable with the given args and return the expected result type
              __REQUIRES(
-               is_invocable_r<Result,Function,Args...>::value or
-               is_invocable_r<void,Function,Args...>::value and std::is_same<Result,any>::value
+               is_invocable_r<Result,Function,BoundArgs...>::value or
+               is_invocable_r<void,Function,BoundArgs...>::value and std::is_same<Result,any>::value
              )
             >
-    explicit basic_serializable_function(Function func, Args... args)
-      : serialized_(serialize_function_and_arguments(&deserialize_and_invoke<Function,Args...>, func, args...))
+    explicit basic_serializable_function(Function func, BoundArgs... args)
+      : serialized_(serialize_function_and_arguments(&deserialize_and_invoke<Function,BoundArgs...>, func, args...))
     {}
 
     explicit operator bool() const noexcept
@@ -491,30 +491,30 @@ class basic_serializable_function
       return any{};
     }
 
-    template<class FunctionPtr, class... Args>
+    template<class Function, class... BoundArgs>
     static Result deserialize_and_invoke(input_archive& archive)
     {
-      // deserialize function pointer and its arguments
-      std::tuple<FunctionPtr,Args...> function_and_args;
-      archive(function_and_args);
+      // deserialize function and its arguments which were bound at construction time
+      std::tuple<Function,BoundArgs...> function_and_bound_args;
+      archive(function_and_bound_args);
 
-      // split tuple into a function pointer and arguments
-      FunctionPtr f = std::get<0>(function_and_args);
-      std::tuple<Args...> arguments = tail(function_and_args);
+      // split tuple into a function pointer and already bound arguments
+      Function f = std::get<0>(function_and_bound_args);
+      std::tuple<BoundArgs...> arguments = tail(function_and_bound_args);
 
       return apply_and_return_result(f, arguments);
     }
 
-    template<class... Args>
-    static std::string serialize_function_and_arguments(const Args&... args)
+    template<class Function, class... Args>
+    static std::string serialize_function_and_arguments(const Function& f, const Args&... args)
     {
       std::stringstream os;
 
       {
         output_archive archive(os);
 
-        // serialize arguments into the archive
-        archive(args...);
+        // serialize the function and its arguments into the archive
+        archive(f, args...);
       }
 
       return os.str();
