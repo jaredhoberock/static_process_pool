@@ -27,6 +27,8 @@
 #include "process.hpp"
 #include "socket.hpp"
 #include "file_descriptor_stream.hpp"
+#include "interprocess_future.hpp"
+#include "interprocess_promise.hpp"
 
 #include <vector>
 #include <memory>
@@ -58,6 +60,12 @@ class static_process_pool
         // creates a new ostream connected to the process
         basic_active_message<std::ostream*> make_ostream;
         *istream_ptrs_.back() >> make_ostream;
+
+        // receive a pointer to the process's ostream
+        // XXX fix basic_active_message so that it can take arguments upon activation
+        remote_ostream_ptrs_.push_back(nullptr);
+        input_archive ar(*istream_ptrs_.back());
+        ar(remote_ostream_ptrs_.back());
 
         // make a new ostream to use to communicate with the process
         ostream_ptrs_.emplace_back(make_ostream.activate());
@@ -96,6 +104,9 @@ class static_process_pool
 
       // destroy each input stream for consistency
       istream_ptrs_.clear();
+
+      // also destroy the list of remote ostream pointers
+      remote_ostream_ptrs_.clear();
     }
 
     // wait for all processes in the process pool to complete
@@ -112,6 +123,12 @@ class static_process_pool
         void execute(Function&& f) const noexcept
         {
           pool_.execute(std::forward<Function>(f));
+        }
+
+        template<class Function>
+        auto twoway_execute(Function&& f) const noexcept
+        {
+          return pool_.twoway_execute(std::forward<Function>(f));
         }
 
       private:
@@ -152,6 +169,10 @@ class static_process_pool
       active_message message(make_ostream_to_host, this_process::hostname(), listener.port());
       *os_ptr << message;
 
+      // send the client an active message which returns a pointer to the ostream just created
+      output_archive ar(*os_ptr);
+      ar(os_ptr.get());
+
       // turn the listener into a reader
       read_socket reader(std::move(listener));
 
@@ -161,6 +182,7 @@ class static_process_pool
       return std::make_pair(is_ptr.release(), os_ptr.release());
     }
 
+    // this is the function run by each server
     static void serve(basic_active_message<twoway_connection> make_twoway_connection_to_client)
     {
       // establish a two-way connection to the client
@@ -180,19 +202,65 @@ class static_process_pool
       }
     }
 
+    inline void execute_active_message_on_process(std::size_t which_process, active_message message)
+    {
+      // write the message to the process's ostream
+      *ostream_ptrs_[which_process] << message;
+    }
+
     template<class Function>
     void execute(Function&& f)
     {
-      // turn f into an active_message and write it to the next worker's ostream
-      *ostream_ptrs_[next_worker_] << active_message(std::forward<Function>(f));
+      // select a process on which to execute
+      std::size_t selected_process = next_worker_;
 
       // round robin through workers
       ++next_worker_;     
       next_worker_ %= processes_.size();
+
+      // turn f into an active_message and execute
+      execute_active_message_on_process(selected_process, active_message(std::forward<Function>(f)));
     };
+
+    template<class Function>
+    static void invoke_function_and_fulfill_promise_connected_to_ostream(Function f, std::ostream* os)
+    {
+      interprocess_promise<int> promise(*os);
+
+      try
+      {
+        auto value = f();
+
+        promise.set_value(value);
+      }
+      catch(...)
+      {
+        promise.set_exception(interprocess_exception("exception"));
+      }
+    }
+
+    template<class Function>
+    interprocess_future<int> twoway_execute(Function&& f)
+    {
+      // select a process on which to execute
+      std::size_t selected_process = next_worker_;
+
+      // round robin through workers
+      ++next_worker_;
+      next_worker_ %= processes_.size();
+
+      // create an active message which, when activated on the remote process,
+      // invokes f and fulfills a promise connected to the process's ostream
+      active_message message(invoke_function_and_fulfill_promise_connected_to_ostream<typename std::decay<Function>::type>, std::forward<Function>(f), remote_ostream_ptrs_[selected_process]);
+      execute_active_message_on_process(selected_process, std::move(message));
+
+      // create a future connected to the remote process
+      return interprocess_future<int>(*istream_ptrs_[selected_process]);
+    }
 
     std::vector<process> processes_;
     std::vector<std::unique_ptr<std::ostream>> ostream_ptrs_;
+    std::vector<std::ostream*> remote_ostream_ptrs_;
     std::vector<std::unique_ptr<std::istream>> istream_ptrs_;
     std::size_t next_worker_;
 };
