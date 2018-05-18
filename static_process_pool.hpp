@@ -180,13 +180,14 @@ class static_process_pool
       std::unique_ptr<std::ostream> os_ptr(stream_ptrs.second);
 
       std::istream& is = *is_ptr;
+      std::ostream& os = *os_ptr;
 
       basic_active_message<void,std::ostream&> message;
 
       // read and activate messages until we run out
       while(is >> message)
       {
-        message.activate(*os_ptr);
+        message.activate(os);
       }
     }
 
