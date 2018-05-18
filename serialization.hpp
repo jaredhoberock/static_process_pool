@@ -48,7 +48,7 @@ template<class OutputArchive, class T>
 void serialize(OutputArchive& ar, const T& value)
 {
   // by default, use formatted output, and follow with whitespace
-  ar.stream() << value << " ";
+  ar.stream() << value << ",";
 }
 
 template<class OutputArchive, class Result, class... Args>
@@ -74,7 +74,10 @@ template<class InputArchive, class T>
 void deserialize(InputArchive& ar, T& value)
 {
   // by default, use formatted input, and consume trailing whitespace
-  ar.stream() >> value >> std::ws;
+  char delimiter = 0;
+  ar.stream() >> value >> delimiter;
+
+  assert(delimiter == ',' or ar.stream().eof());
 }
 
 template<class InputArchive, class T,
@@ -403,32 +406,41 @@ using can_deserialize_all = conjunction<can_deserialize<Ts>...>;
 
 
 
-class serializable_closure
+template<class Result>
+class basic_serializable_closure
 {
   private:
+    static_assert(can_deserialize<Result>::value, "Result must be deserializable.");
+
     static void noop_function() {}
 
   public:
-    serializable_closure()
-      : serializable_closure(&noop_function)
+    basic_serializable_closure()
+      : basic_serializable_closure(&noop_function)
     {}
 
     template<class Function, class... Args,
+             // must be able to serialize and deserialize all these constructor arguments
              __REQUIRES(can_serialize_all<Function,Args...>::value),
              __REQUIRES(can_deserialize_all<Function,Args...>::value),
-             __REQUIRES(is_invocable<Function,Args...>::value)
+
+             // the function needs to be invocable with the given args and return the expected result type
+             __REQUIRES(
+               is_invocable_r<Result,Function,Args...>::value or
+               is_invocable_r<void,Function,Args...>::value and std::is_same<Result,any>::value
+             )
             >
-    explicit serializable_closure(Function func, Args... args)
+    explicit basic_serializable_closure(Function func, Args... args)
       : serialized_(serialize_function_and_arguments(&deserialize_and_invoke<Function,Args...>, func, args...))
     {}
 
-    any operator()() const
+    Result operator()() const
     {
       std::stringstream is(serialized_);
       input_archive archive(is);
 
       // extract a function_ptr_type from the beginning of the buffer
-      using function_ptr_type = any (*)(input_archive&);
+      using function_ptr_type = Result (*)(input_archive&);
       function_ptr_type invoke_me = nullptr;
       archive(invoke_me);
 
@@ -437,44 +449,49 @@ class serializable_closure
     }
 
     template<class OutputArchive>
-    friend void serialize(OutputArchive& ar, const serializable_closure& sc)
+    friend void serialize(OutputArchive& ar, const basic_serializable_closure& sc)
     {
       ar(sc.serialized_);
     }
 
     template<class InputArchive>
-    friend void deserialize(InputArchive& ar, serializable_closure& sc)
+    friend void deserialize(InputArchive& ar, basic_serializable_closure& sc)
     {
       ar(sc.serialized_);
     }
 
-    inline friend std::istream& operator>>(std::istream& is, serializable_closure& sc)
+    inline friend std::istream& operator>>(std::istream& is, basic_serializable_closure& sc)
     {
       return is >> sc.serialized_;
     }
 
   private:
     template<class Function, class Tuple,
-             class ApplyResult = decltype(apply(std::declval<Function&&>(), std::declval<Tuple&&>())),
-             __REQUIRES(std::is_void<ApplyResult>::value)
-            >
-    static any apply_and_return_any(Function&& f, Tuple&& t)
-    {
-      apply(std::forward<Function>(f), std::forward<Tuple>(t));
-      return any();
-    }
-
-    template<class Function, class Tuple,
-             class ApplyResult = decltype(apply(std::declval<Function&&>(), std::declval<Tuple&&>())),
-             __REQUIRES(!std::is_void<ApplyResult>::value)
-            >
-    static any apply_and_return_any(Function&& f, Tuple&& t)
+             __REQUIRES(
+               std::is_convertible<
+                 apply_result_t<Function, Tuple>, Result
+               >::value
+             )>
+    static Result apply_and_return_result(Function&& f, Tuple&& t)
     {
       return apply(std::forward<Function>(f), std::forward<Tuple>(t));
     }
 
+    template<class Function, class Tuple,
+             __REQUIRES(
+               std::is_void<apply_result_t<Function, Tuple>>::value and
+               std::is_same<Result, any>::value
+             )>
+    static any apply_and_return_result(Function&& f, Tuple&& t)
+    {
+      apply(std::forward<Function>(f), std::forward<Tuple>(t));
+
+      // an empty any object stands in for a void result
+      return any{};
+    }
+
     template<class FunctionPtr, class... Args>
-    static any deserialize_and_invoke(input_archive& archive)
+    static Result deserialize_and_invoke(input_archive& archive)
     {
       // deserialize function pointer and its arguments
       std::tuple<FunctionPtr,Args...> function_and_args;
@@ -484,7 +501,7 @@ class serializable_closure
       FunctionPtr f = std::get<0>(function_and_args);
       std::tuple<Args...> arguments = tail(function_and_args);
 
-      return apply_and_return_any(f, arguments);
+      return apply_and_return_result(f, arguments);
     }
 
     template<class... Args>
@@ -504,6 +521,9 @@ class serializable_closure
 
     std::string serialized_;
 };
+
+
+using serializable_closure = basic_serializable_closure<any>;
 
 
 template<class T>
@@ -533,5 +553,11 @@ template<class T>
 T from_string(const char* string)
 {
   return from_string<T>(string, std::strlen(string));
+}
+
+template<class T>
+T from_string(const std::string& string)
+{
+  return from_string<T>(string.c_str());
 }
 
