@@ -176,6 +176,7 @@ class static_process_pool
       // establish a two-way connection to the client
       auto stream_ptrs = make_twoway_connection_to_client.activate();
 
+      // unpack the streams, being careful not to cross them
       std::unique_ptr<std::istream> is_ptr(stream_ptrs.first);
       std::unique_ptr<std::ostream> os_ptr(stream_ptrs.second);
 
