@@ -73,7 +73,9 @@ class basic_active_message
 
     friend std::ostream& operator<<(std::ostream& os, const basic_active_message& message)
     {
-      return os << to_string(message);
+      output_archive ar(os);
+      ar(message);
+      return os;
     }
 
   private:
