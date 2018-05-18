@@ -406,7 +406,7 @@ using can_deserialize_all = conjunction<can_deserialize<Ts>...>;
 
 
 
-template<class Result>
+template<class Result, class... UnboundArgs>
 class basic_serializable_function
 {
   private:
@@ -422,8 +422,8 @@ class basic_serializable_function
 
              // the function needs to be invocable with the given args and return the expected result type
              __REQUIRES(
-               is_invocable_r<Result,Function,BoundArgs...>::value or
-               is_invocable_r<void,Function,BoundArgs...>::value and std::is_same<Result,any>::value
+               is_invocable_r<Result,Function,BoundArgs...,UnboundArgs...>::value or
+               is_invocable_r<void,Function,BoundArgs...,UnboundArgs...>::value and std::is_same<Result,any>::value
              )
             >
     explicit basic_serializable_function(Function func, BoundArgs... args)
@@ -435,18 +435,19 @@ class basic_serializable_function
       return !serialized_.empty();
     }
 
-    Result operator()() const
+    Result operator()(UnboundArgs... args) const
     {
       std::stringstream is(serialized_);
       input_archive archive(is);
 
       // extract a function_ptr_type from the beginning of the buffer
-      using function_ptr_type = Result (*)(input_archive&);
+      using function_ptr_type = Result (*)(input_archive&, UnboundArgs...);
       function_ptr_type invoke_me = nullptr;
+
       archive(invoke_me);
 
       // invoke the function pointer on the remaining data
-      return invoke_me(archive);
+      return invoke_me(archive, args...);
     }
 
     template<class OutputArchive>
@@ -492,15 +493,18 @@ class basic_serializable_function
     }
 
     template<class Function, class... BoundArgs>
-    static Result deserialize_and_invoke(input_archive& archive)
+    static Result deserialize_and_invoke(input_archive& archive, UnboundArgs... unbound_args)
     {
       // deserialize function and its arguments which were bound at construction time
       std::tuple<Function,BoundArgs...> function_and_bound_args;
       archive(function_and_bound_args);
 
-      // split tuple into a function pointer and already bound arguments
+      // split tuple into a function and already bound arguments
       Function f = std::get<0>(function_and_bound_args);
-      std::tuple<BoundArgs...> arguments = tail(function_and_bound_args);
+      std::tuple<BoundArgs...> bound_arguments = tail(function_and_bound_args);
+
+      // concatenate the bound and unbounded arguments into a single list of arguments
+      std::tuple<BoundArgs...,UnboundArgs...> arguments = std::tuple_cat(bound_arguments, std::make_tuple(unbound_args...));
 
       return apply_and_return_result(f, arguments);
     }
