@@ -412,11 +412,12 @@ class basic_serializable_closure
   private:
     static_assert(can_deserialize<Result>::value, "Result must be deserializable.");
 
-    static void noop_function() {}
+    static Result make_result() { return Result{}; }
 
   public:
+    template<__REQUIRES(std::is_default_constructible<Result>::value)>
     basic_serializable_closure()
-      : basic_serializable_closure(&noop_function)
+      : basic_serializable_closure(&make_result)
     {}
 
     template<class Function, class... Args,
