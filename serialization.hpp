@@ -528,22 +528,6 @@ class basic_serializable_function
 };
 
 
-template<class... UnboundArgs, class Function, class... BoundArgs>
-basic_serializable_function<
-  invoke_result_t<Function, BoundArgs..., UnboundArgs...>,
-  UnboundArgs...
->
-  make_serializable_function(Function f, BoundArgs... bound_args)
-{
-  using result_type = basic_serializable_function<
-    invoke_result_t<Function, BoundArgs..., UnboundArgs...>,
-    UnboundArgs...
-  >;
-
-  return result_type(f, bound_args...);
-}
-
-
 using serializable_function = basic_serializable_function<any>;
 
 
