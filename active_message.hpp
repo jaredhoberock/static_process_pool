@@ -30,7 +30,7 @@
 #include "tuple.hpp"
 
 
-template<class Result>
+template<class Result, class... UnboundArgs>
 class basic_active_message
 {
   public:
@@ -38,18 +38,24 @@ class basic_active_message
 
     basic_active_message() = default;
 
-    template<class Function, class... Args,
-             __REQUIRES(can_serialize_all<Function,Args...>::value),
-             __REQUIRES(can_deserialize_all<Function,Args...>::value),
-             __REQUIRES(is_invocable<Function,Args...>::value)
+    template<class Function, class... BoundArgs,
+             // must be able to serialize and deserialize all these constructor arguments
+             __REQUIRES(can_serialize_all<Function,BoundArgs...>::value),
+             __REQUIRES(can_deserialize_all<Function,BoundArgs...>::value),
+
+             // the function needs to be invocable with the given args and return the expected result type
+             __REQUIRES(
+               is_invocable_r<Result,Function,BoundArgs...,UnboundArgs...>::value or
+               is_invocable_r<void,Function,BoundArgs...,UnboundArgs...>::value and std::is_same<Result,any>::value
+             )
             >
-    explicit basic_active_message(Function func, Args... args)
+    explicit basic_active_message(Function func, BoundArgs... args)
       : message_(func, args...)
     {}
 
-    result_type activate() const
+    result_type activate(UnboundArgs... args) const
     {
-      return message_();
+      return message_(args...);
     }
 
     template<class OutputArchive>
@@ -79,7 +85,7 @@ class basic_active_message
     }
 
   private:
-    basic_serializable_function<result_type> message_;
+    basic_serializable_function<result_type,UnboundArgs...> message_;
 };
 
 
