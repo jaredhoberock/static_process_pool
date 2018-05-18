@@ -61,14 +61,15 @@ class static_process_pool
         basic_active_message<std::ostream*> make_ostream;
         *istream_ptrs_.back() >> make_ostream;
 
+        // make a new ostream to use to communicate with the process
+        ostream_ptrs_.emplace_back(make_ostream.activate());
+
         // receive a pointer to the process's ostream
-        // XXX fix basic_active_message so that it can take arguments upon activation
+        // XXX eliminate the need for this by generalizing basic_active_message so that it can take arguments upon activation
+        // XXX the idea is that the server should pass its ostream as an argument to each active message it activates
         remote_ostream_ptrs_.push_back(nullptr);
         input_archive ar(*istream_ptrs_.back());
         ar(remote_ostream_ptrs_.back());
-
-        // make a new ostream to use to communicate with the process
-        ostream_ptrs_.emplace_back(make_ostream.activate());
       }
     }
 
@@ -166,7 +167,8 @@ class static_process_pool
 
       // send the client an active message which, when activated on the client,
       // establishes an ostream connected from the client to this server
-      active_message message(make_ostream_to_host, this_process::hostname(), listener.port());
+      basic_active_message<std::ostream*> message(make_ostream_to_host, this_process::hostname(), listener.port());
+
       *os_ptr << message;
 
       // send the client an active message which returns a pointer to the ostream just created
