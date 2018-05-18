@@ -63,13 +63,6 @@ class static_process_pool
 
         // make a new ostream to use to communicate with the process
         ostream_ptrs_.emplace_back(make_ostream.activate());
-
-        // receive a pointer to the process's ostream
-        // XXX eliminate the need for this by generalizing basic_active_message so that it can take arguments upon activation
-        // XXX the idea is that the server should pass its ostream as an argument to each active message it activates
-        remote_ostream_ptrs_.push_back(nullptr);
-        input_archive ar(*istream_ptrs_.back());
-        ar(remote_ostream_ptrs_.back());
       }
     }
 
@@ -105,9 +98,6 @@ class static_process_pool
 
       // destroy each input stream for consistency
       istream_ptrs_.clear();
-
-      // also destroy the list of remote ostream pointers
-      remote_ostream_ptrs_.clear();
     }
 
     // wait for all processes in the process pool to complete
@@ -171,10 +161,6 @@ class static_process_pool
 
       *os_ptr << message;
 
-      // send the client an active message which returns a pointer to the ostream just created
-      output_archive ar(*os_ptr);
-      ar(os_ptr.get());
-
       // turn the listener into a reader
       read_socket reader(std::move(listener));
 
@@ -195,19 +181,26 @@ class static_process_pool
 
       std::istream& is = *is_ptr;
 
-      active_message message;
+      basic_active_message<void,std::ostream&> message;
 
       // read and activate messages until we run out
       while(is >> message)
       {
-        message.activate();
+        message.activate(*os_ptr);
       }
     }
 
-    inline void execute_active_message_on_process(std::size_t which_process, active_message message)
+    inline void execute_active_message_on_process(std::size_t which_process, basic_active_message<void,std::ostream&> message)
     {
       // write the message to the process's ostream
       *ostream_ptrs_[which_process] << message;
+    }
+
+    template<class Function>
+    static void ignore_ostream_and_invoke(Function f, std::ostream& os)
+    {
+      // any result from f is discarded
+      f();
     }
 
     template<class Function>
@@ -220,14 +213,18 @@ class static_process_pool
       ++next_worker_;     
       next_worker_ %= processes_.size();
 
-      // turn f into an active_message and execute
-      execute_active_message_on_process(selected_process, active_message(std::forward<Function>(f)));
+      // turn f into an active_message
+      // give f an ostream& parameter which will be ignored when invoked on the server
+      basic_active_message<void,std::ostream&> message(ignore_ostream_and_invoke<typename std::decay<Function>::type>, std::forward<Function>(f));
+
+      // execute the message on the selected process
+      execute_active_message_on_process(selected_process, message);
     };
 
     template<class Function>
-    static void invoke_function_and_fulfill_promise_connected_to_ostream(Function f, std::ostream* os)
+    static void invoke_function_and_fulfill_promise_connected_to_ostream(Function f, std::ostream& os)
     {
-      interprocess_promise<int> promise(*os);
+      interprocess_promise<int> promise(os);
 
       try
       {
@@ -253,7 +250,7 @@ class static_process_pool
 
       // create an active message which, when activated on the remote process,
       // invokes f and fulfills a promise connected to the process's ostream
-      active_message message(invoke_function_and_fulfill_promise_connected_to_ostream<typename std::decay<Function>::type>, std::forward<Function>(f), remote_ostream_ptrs_[selected_process]);
+      basic_active_message<void,std::ostream&> message(invoke_function_and_fulfill_promise_connected_to_ostream<typename std::decay<Function>::type>, std::forward<Function>(f));
       execute_active_message_on_process(selected_process, std::move(message));
 
       // create a future connected to the remote process
@@ -262,7 +259,6 @@ class static_process_pool
 
     std::vector<process> processes_;
     std::vector<std::unique_ptr<std::ostream>> ostream_ptrs_;
-    std::vector<std::ostream*> remote_ostream_ptrs_;
     std::vector<std::unique_ptr<std::istream>> istream_ptrs_;
     std::size_t next_worker_;
 };
