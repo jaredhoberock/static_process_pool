@@ -49,7 +49,7 @@ class basic_active_message
 
     result_type activate() const
     {
-      return any_cast<result_type>(message_());
+      return message_();
     }
 
     template<class OutputArchive>
@@ -79,7 +79,7 @@ class basic_active_message
     }
 
   private:
-    serializable_closure message_;
+    basic_serializable_closure<result_type> message_;
 };
 
 
