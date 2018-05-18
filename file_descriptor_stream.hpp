@@ -155,7 +155,7 @@ class file_descriptor_istream : public std::istream
         }
 
         file_descriptor_buffer(file_descriptor_buffer&& other)
-          : fd_(-1), buffer_(std::move(other.buffer_))
+          : buffer_(std::move(other.buffer_)), fd_(-1)
         {
           std::swap(fd_, other.fd_);
 
