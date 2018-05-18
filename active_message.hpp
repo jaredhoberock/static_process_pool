@@ -27,6 +27,7 @@
 #pragma once
 
 #include "serialization.hpp"
+#include "serializable_function.hpp"
 #include "tuple.hpp"
 
 
