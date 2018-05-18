@@ -406,15 +406,14 @@ using can_deserialize_all = conjunction<can_deserialize<Ts>...>;
 
 
 
-// XXX a better name for this would be basic_serializable_function
 template<class Result>
-class basic_serializable_closure
+class basic_serializable_function
 {
   private:
     static_assert(can_deserialize<Result>::value, "Result must be deserializable.");
 
   public:
-    basic_serializable_closure() = default;
+    basic_serializable_function() = default;
 
     template<class Function, class... Args,
              // must be able to serialize and deserialize all these constructor arguments
@@ -427,7 +426,7 @@ class basic_serializable_closure
                is_invocable_r<void,Function,Args...>::value and std::is_same<Result,any>::value
              )
             >
-    explicit basic_serializable_closure(Function func, Args... args)
+    explicit basic_serializable_function(Function func, Args... args)
       : serialized_(serialize_function_and_arguments(&deserialize_and_invoke<Function,Args...>, func, args...))
     {}
 
@@ -451,20 +450,20 @@ class basic_serializable_closure
     }
 
     template<class OutputArchive>
-    friend void serialize(OutputArchive& ar, const basic_serializable_closure& sc)
+    friend void serialize(OutputArchive& ar, const basic_serializable_function& sf)
     {
-      ar(sc.serialized_);
+      ar(sf.serialized_);
     }
 
     template<class InputArchive>
-    friend void deserialize(InputArchive& ar, basic_serializable_closure& sc)
+    friend void deserialize(InputArchive& ar, basic_serializable_function& sf)
     {
-      ar(sc.serialized_);
+      ar(sf.serialized_);
     }
 
-    inline friend std::istream& operator>>(std::istream& is, basic_serializable_closure& sc)
+    inline friend std::istream& operator>>(std::istream& is, basic_serializable_function& sf)
     {
-      return is >> sc.serialized_;
+      return is >> sf.serialized_;
     }
 
   private:
@@ -525,7 +524,7 @@ class basic_serializable_closure
 };
 
 
-using serializable_closure = basic_serializable_closure<any>;
+using serializable_function = basic_serializable_function<any>;
 
 
 template<class T>

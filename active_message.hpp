@@ -79,7 +79,7 @@ class basic_active_message
     }
 
   private:
-    basic_serializable_closure<result_type> message_;
+    basic_serializable_function<result_type> message_;
 };
 
 

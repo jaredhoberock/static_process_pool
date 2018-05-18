@@ -227,10 +227,11 @@ class new_posix_process_executor
 
     struct binder
     {
+      // XXX this should instantiate basic_serializable_function with the type of f's result
       template<class Function, class... Args>
-      serializable_closure operator()(Function&& f, Args&&... args) const
+      serializable_function operator()(Function&& f, Args&&... args) const
       {
-        return serializable_closure(std::forward<Function>(f), std::forward<Args>(args)...);
+        return serializable_function(std::forward<Function>(f), std::forward<Args>(args)...);
       }
     };
 
