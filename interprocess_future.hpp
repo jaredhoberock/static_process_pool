@@ -40,21 +40,34 @@ class interprocess_future
 {
   public:
     interprocess_future(post_office& po, post_office::address_type address)
-      : post_office_(po), address_(address), result_or_exception_(T()), is_ready_(false)
+      : post_office_(po), address_(address)
     {}
 
-    interprocess_future(interprocess_future&&) = default;
+    interprocess_future(interprocess_future&& other) noexcept
+      : post_office_(other.post_office_), address_(nullptr)
+    {
+      std::swap(address_, other.address_);
+    }
 
     interprocess_future(const interprocess_future&) = delete;
+
+    ~interprocess_future()
+    {
+      if(post_office_.valid(address_))
+      {
+        // XXX we should introduce a mailbox type for RAII
+        post_office_.delete_address(address_);
+      }
+    }
 
     T get()
     {
       // wait for the result to become ready
       wait();
 
-      // after waiting, the result should be available
+      // after waiting, the result should be ready
       // otherwise, the result has already been retrieved
-      if(!result_or_exception_)
+      if(!is_ready())
       {
         throw std::future_error(std::future_errc::future_already_retrieved);
       }
@@ -76,7 +89,7 @@ class interprocess_future
 
     bool is_ready() const
     {
-      return is_ready_;
+      return result_or_exception_.has_value();
     }
 
     void wait()
@@ -89,21 +102,20 @@ class interprocess_future
       if(!is_ready())
       {
         using state_type = variant<T,interprocess_exception>;
-        *result_or_exception_ = post_office_.blocking_receive<state_type>(address_);
+        result_or_exception_ = post_office_.blocking_receive<state_type>(address_);
 
-        is_ready_ = true;
+        address_ = nullptr;
       }
     }
 
     bool valid() const
     {
-      return static_cast<bool>(result_or_exception_);
+      return post_office_.valid(address_) or result_or_exception_.has_value();
     }
 
   private:
     post_office& post_office_;
     post_office::address_type address_;
     optional<variant<T,interprocess_exception>> result_or_exception_;
-    bool is_ready_;
 };
 
