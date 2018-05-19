@@ -40,7 +40,7 @@ class interprocess_future
 {
   public:
     interprocess_future(std::istream& is)
-      : is_(is), result_or_exception_(T())
+      : is_(is), result_or_exception_(T()), is_ready_(false)
     {}
 
     interprocess_future(interprocess_future&&) = default;
@@ -76,8 +76,7 @@ class interprocess_future
 
     bool is_ready() const
     {
-      // XXX we should not use the stream to decide whether the future is ready
-      return is_.eof();
+      return is_ready_;
     }
 
     void wait()
@@ -87,7 +86,6 @@ class interprocess_future
         throw std::future_error(std::future_errc::no_state);
       }
 
-      // XXX this should be if not ready
       if(!is_ready())
       {
         {
@@ -96,8 +94,7 @@ class interprocess_future
           ar(*result_or_exception_);
         }
 
-        // XXX we shouldn't use the istream to signal that the result has been consumed
-        is_.setstate(std::ios_base::eofbit);
+        is_ready_ = true;
       }
     }
 
@@ -109,5 +106,6 @@ class interprocess_future
   private:
     std::istream& is_;
     optional<variant<T,interprocess_exception>> result_or_exception_;
+    bool is_ready_;
 };
 
