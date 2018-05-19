@@ -260,10 +260,10 @@ class static_process_pool
       // create a future to receive our result
       interprocess_future<result_type> future_result(post_offices_[selected_process]);
 
-      // create an active message which, when activated on the remote process,
+      // create an active message which, when executed on the remote process,
       // invokes f and fulfills a promise connected to this future
-      auto invoke_me_remotely = invoke_function_and_fulfill_promise_connected_to_ostream<result_type, typename std::decay<Function>::type>;
-      basic_active_message<void,std::ostream&> message(invoke_me_remotely, std::forward<Function>(f), future_result.identity());
+      auto execute_me_remotely = invoke_function_and_fulfill_promise_connected_to_ostream<result_type, typename std::decay<Function>::type>;
+      basic_active_message<void,std::ostream&> message(execute_me_remotely, std::forward<Function>(f), future_result.identity());
       execute_active_message_on_process(selected_process, std::move(message));
 
       // return the future
