@@ -43,9 +43,19 @@ class post_office
       : is_(is)
     {}
 
-    address_type make_new_address()
+    address_type new_address()
     {
       return new std::string();
+    }
+
+    void delete_address(address_type address)
+    {
+      delete address;
+    }
+
+    bool valid(address_type address) const noexcept
+    {
+      return address != nullptr;
     }
 
     bool available(address_type address) const
@@ -63,7 +73,7 @@ class post_office
 
       std::string result = std::move(*address);
 
-      delete address;
+      delete_address(address);
 
       return from_string<T>(result);
     }
