@@ -253,7 +253,7 @@ class static_process_pool
       next_worker_ %= processes_.size();
 
       // create a mailbox to receive our result
-      post_office::address_type address = post_offices_[selected_process].make_new_address();
+      post_office::address_type address = post_offices_[selected_process].new_address();
 
       // create an active message which, when activated on the remote process,
       // invokes f and fulfills a promise connected to the process's ostream
