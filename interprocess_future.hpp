@@ -35,6 +35,7 @@
 #include "interprocess_exception.hpp"
 
 
+// XXX this needs to be specialized for void T because variant can't hold void
 template<class T>
 class interprocess_future
 {
@@ -43,7 +44,7 @@ class interprocess_future
       : mailbox_(po)
     {}
 
-    interprocess_future(interprocess_future&& other) = default;
+    interprocess_future(interprocess_future&&) = default;
 
     interprocess_future(const interprocess_future&) = delete;
 

@@ -33,6 +33,7 @@
 #include "post_office.hpp"
 
 
+// XXX this needs to be specialized for void T because variant can't hold void
 template<class T>
 class interprocess_promise
 {
@@ -40,6 +41,10 @@ class interprocess_promise
     interprocess_promise(std::ostream& os, post_office::address_type receiver_address)
       : os_(os), receiver_address_(receiver_address)
     {}
+
+    interprocess_promise(interprocess_promise&&) = default;
+
+    interprocess_promise(const interprocess_promise&) = delete;
 
     void set_value(const T& value)
     {

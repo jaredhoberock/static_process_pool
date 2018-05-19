@@ -225,10 +225,10 @@ class static_process_pool
       execute_active_message_on_process(selected_process, message);
     };
 
-    template<class Function>
-    static void invoke_function_and_fulfill_promise_connected_to_ostream(Function f, post_office::address_type receiver_address, std::ostream& os)
+    template<class Result, class Function>
+    static void invoke_function_and_fulfill_promise_connected_to_ostream(Function f, post_office::address_type receiver_identity, std::ostream& os)
     {
-      interprocess_promise<int> promise(os, receiver_address);
+      interprocess_promise<Result> promise(os, receiver_identity);
 
       try
       {
@@ -243,8 +243,13 @@ class static_process_pool
     }
 
     template<class Function>
-    interprocess_future<int> twoway_execute(Function&& f)
+    interprocess_future<
+      invoke_result_t<typename std::decay<Function>::type>
+    >
+      twoway_execute(Function&& f)
     {
+      using result_type = invoke_result_t<typename std::decay<Function>::type>;
+
       // select a process on which to execute
       std::size_t selected_process = next_worker_;
 
@@ -253,11 +258,12 @@ class static_process_pool
       next_worker_ %= processes_.size();
 
       // create a future to receive our result
-      interprocess_future<int> future_result(post_offices_[selected_process]);
+      interprocess_future<result_type> future_result(post_offices_[selected_process]);
 
       // create an active message which, when activated on the remote process,
-      // invokes f and fulfills a promise connected to the local mailbox address
-      basic_active_message<void,std::ostream&> message(invoke_function_and_fulfill_promise_connected_to_ostream<typename std::decay<Function>::type>, std::forward<Function>(f), future_result.mailbox_address());
+      // invokes f and fulfills a promise connected to this future
+      auto invoke_me_remotely = invoke_function_and_fulfill_promise_connected_to_ostream<result_type, typename std::decay<Function>::type>;
+      basic_active_message<void,std::ostream&> message(invoke_me_remotely, std::forward<Function>(f), future_result.identity());
       execute_active_message_on_process(selected_process, std::move(message));
 
       // return the future
