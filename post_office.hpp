@@ -91,8 +91,8 @@ class post_office
 
         T receive()
         {
-          // get the result
-          T result = post_office_.receive<T>(address());
+          // deliver the result
+          T result = post_office_.deliver<T>(address());
 
           // invalidate
           address_ = nullptr;
@@ -135,7 +135,7 @@ class post_office
     }
 
     template<class T>
-    T receive(address_type address)
+    T deliver(address_type address)
     {
       if(address->empty() and !block_and_sort_available_messages_until(address))
       {
