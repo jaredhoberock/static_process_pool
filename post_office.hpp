@@ -37,10 +37,13 @@ class post_office
   public:
     using address_type = std::string*;
 
+    // constructs a new post_office to receive incoming posts on is
     post_office(std::istream& is)
       : is_(is)
     {}
 
+    // requires that os is connected to the istream which was used as a constructor argument
+    // for the post_office which owns mailbox_address
     template<class T>
     static void post(std::ostream& os, address_type mailbox_address, const T& value)
     {
