@@ -97,7 +97,7 @@ class interprocess_future
       return mailbox_ or result_or_exception_;
     }
 
-    post_office::address_type mailbox_address() const noexcept
+    post_office::address_type identity() const noexcept
     {
       return mailbox_.address();
     }
