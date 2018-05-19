@@ -39,26 +39,13 @@ template<class T>
 class interprocess_future
 {
   public:
-    interprocess_future(post_office& po, post_office::address_type address)
-      : post_office_(po), address_(address)
+    interprocess_future(post_office& po)
+      : mailbox_(po)
     {}
 
-    interprocess_future(interprocess_future&& other) noexcept
-      : post_office_(other.post_office_), address_(nullptr)
-    {
-      std::swap(address_, other.address_);
-    }
+    interprocess_future(interprocess_future&& other) = default;
 
     interprocess_future(const interprocess_future&) = delete;
-
-    ~interprocess_future()
-    {
-      if(post_office_.valid(address_))
-      {
-        // XXX we should introduce a mailbox type for RAII
-        post_office_.delete_address(address_);
-      }
-    }
 
     T get()
     {
@@ -87,7 +74,7 @@ class interprocess_future
       return result;
     }
 
-    bool is_ready() const
+    bool is_ready() const noexcept
     {
       return result_or_exception_.has_value();
     }
@@ -101,21 +88,24 @@ class interprocess_future
 
       if(!is_ready())
       {
-        using state_type = variant<T,interprocess_exception>;
-        result_or_exception_ = post_office_.blocking_receive<state_type>(address_);
-
-        address_ = nullptr;
+        result_or_exception_ = mailbox_.blocking_receive();
       }
     }
 
-    bool valid() const
+    bool valid() const noexcept
     {
-      return post_office_.valid(address_) or result_or_exception_.has_value();
+      return mailbox_ or result_or_exception_;
+    }
+
+    post_office::address_type mailbox_address() const noexcept
+    {
+      return mailbox_.address();
     }
 
   private:
-    post_office& post_office_;
-    post_office::address_type address_;
-    optional<variant<T,interprocess_exception>> result_or_exception_;
+    using state_type = variant<T,interprocess_exception>;
+
+    post_office::mailbox<state_type> mailbox_;
+    optional<state_type> result_or_exception_;
 };
 

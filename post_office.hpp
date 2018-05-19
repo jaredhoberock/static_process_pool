@@ -32,8 +32,6 @@
 #include "serialization.hpp"
 
 
-// XXX next step: figure out how to make mailboxes work
-// XXX we probably need two types: one for sending and one for receiving
 class post_office
 {
   public:
@@ -43,6 +41,68 @@ class post_office
       : is_(is)
     {}
 
+    template<class T>
+    static void send(std::ostream& os, address_type mailbox_address, const T& value)
+    {
+      output_archive ar(os);
+      ar(mailbox_address, to_string(value));
+    }
+
+    template<class T>
+    class mailbox
+    {
+      public:
+        mailbox(post_office& po)
+          : post_office_(po), address_(post_office_.new_address())
+        {}
+
+        mailbox(mailbox&& other)
+          : post_office_(other.post_office_),
+            address_(nullptr)
+        {
+          std::swap(address_, other.address_);
+        }
+
+        ~mailbox()
+        {
+          if(valid())
+          {
+            post_office_.delete_address(address());
+          }
+        }
+
+        address_type address() const noexcept
+        {
+          return address_;
+        }
+
+        bool valid() const noexcept
+        {
+          return address_ != nullptr;
+        }
+
+        operator bool () const noexcept
+        {
+          return valid();
+        }
+
+        T blocking_receive()
+        {
+          // get the result
+          T result = post_office_.blocking_receive<T>(address());
+
+          // invalidate
+          address_ = nullptr;
+
+          return result;
+        }
+
+      private:
+        post_office& post_office_;
+        address_type address_;
+    };
+
+  private:
     address_type new_address()
     {
       return new std::string();
@@ -53,39 +113,6 @@ class post_office
       delete address;
     }
 
-    bool valid(address_type address) const noexcept
-    {
-      return address != nullptr;
-    }
-
-    bool available(address_type address) const
-    {
-      return !address->empty();
-    }
-
-    template<class T>
-    T blocking_receive(address_type address)
-    {
-      if(address->empty() and !block_and_sort_available_messages_until(address))
-      {
-        throw std::runtime_error("mailbox empty");
-      }
-
-      std::string result = std::move(*address);
-
-      delete_address(address);
-
-      return from_string<T>(result);
-    }
-
-    template<class T>
-    static void send(std::ostream& os, address_type address, const T& value)
-    {
-      output_archive ar(os);
-      ar(address, to_string(value));
-    }
-
-  private:
     bool block_and_sort_available_messages_until(address_type address)
     {
       address_type current_address = nullptr;
@@ -102,6 +129,21 @@ class post_office
       }
 
       return address == current_address;
+    }
+
+    template<class T>
+    T blocking_receive(address_type address)
+    {
+      if(address->empty() and !block_and_sort_available_messages_until(address))
+      {
+        throw std::runtime_error("mailbox empty");
+      }
+
+      std::string result = std::move(*address);
+
+      delete_address(address);
+
+      return from_string<T>(result);
     }
 
     std::istream& is_;

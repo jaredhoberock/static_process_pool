@@ -57,7 +57,7 @@ class static_process_pool
         // turn that socket into an istream
         istream_ptrs_.emplace_back(new file_descriptor_istream(reader.release()));
 
-        // create a post office for receiving from this process
+        // create a post office for receiving on that istream
         post_offices_.emplace_back(*istream_ptrs_.back());
 
         // receive a message from the process which, when activated,
@@ -252,22 +252,26 @@ class static_process_pool
       ++next_worker_;
       next_worker_ %= processes_.size();
 
-      // create a mailbox to receive our result
-      post_office::address_type address = post_offices_[selected_process].new_address();
+      // create a future to receive our result
+      interprocess_future<int> future_result(post_offices_[selected_process]);
 
       // create an active message which, when activated on the remote process,
-      // invokes f and fulfills a promise connected to the process's ostream
-      basic_active_message<void,std::ostream&> message(invoke_function_and_fulfill_promise_connected_to_ostream<typename std::decay<Function>::type>, std::forward<Function>(f), address);
+      // invokes f and fulfills a promise connected to the local mailbox address
+      basic_active_message<void,std::ostream&> message(invoke_function_and_fulfill_promise_connected_to_ostream<typename std::decay<Function>::type>, std::forward<Function>(f), future_result.mailbox_address());
       execute_active_message_on_process(selected_process, std::move(message));
 
-      // create a future connected to the remote process
-      return interprocess_future<int>(post_offices_[selected_process], address);
+      // return the future
+      return future_result;
     }
 
     std::vector<process> processes_;
     std::vector<std::unique_ptr<std::ostream>> ostream_ptrs_;
+
+    // XXX keeping both a list of istreams and a list of post_offices is a little redundant
+    //     if each post_office owned its istream, we could avoid having to manage both
     std::vector<std::unique_ptr<std::istream>> istream_ptrs_;
     std::vector<post_office> post_offices_;
+
     std::size_t next_worker_;
 };
 
