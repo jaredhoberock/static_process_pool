@@ -53,7 +53,7 @@ class interprocess_promise
       // wrap the value in a variant before transmitting
       variant<T,interprocess_exception> value_or_exception = value;
 
-      post_office::send(os_, receiver_address_, std::move(value_or_exception));
+      post_office::post(os_, receiver_address_, std::move(value_or_exception));
     }
 
     void set_exception(const interprocess_exception& exception)
@@ -63,7 +63,7 @@ class interprocess_promise
       // wrap the exception in a variant before transmitting
       variant<T,interprocess_exception> value_or_exception = exception;
 
-      post_office::send(os_, receiver_address_, std::move(value_or_exception));
+      post_office::post(os_, receiver_address_, std::move(value_or_exception));
     }
 
   private:

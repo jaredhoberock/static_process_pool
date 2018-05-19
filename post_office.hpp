@@ -42,7 +42,7 @@ class post_office
     {}
 
     template<class T>
-    static void send(std::ostream& os, address_type mailbox_address, const T& value)
+    static void post(std::ostream& os, address_type mailbox_address, const T& value)
     {
       output_archive ar(os);
       ar(mailbox_address, to_string(value));
