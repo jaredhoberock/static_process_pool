@@ -89,7 +89,7 @@ class interprocess_future
 
       if(!is_ready())
       {
-        result_or_exception_ = mailbox_.blocking_receive();
+        result_or_exception_ = mailbox_.receive();
       }
     }
 

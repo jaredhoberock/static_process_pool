@@ -89,10 +89,10 @@ class post_office
           return valid();
         }
 
-        T blocking_receive()
+        T receive()
         {
           // get the result
-          T result = post_office_.blocking_receive<T>(address());
+          T result = post_office_.receive<T>(address());
 
           // invalidate
           address_ = nullptr;
@@ -135,7 +135,7 @@ class post_office
     }
 
     template<class T>
-    T blocking_receive(address_type address)
+    T receive(address_type address)
     {
       if(address->empty() and !block_and_sort_available_messages_until(address))
       {
