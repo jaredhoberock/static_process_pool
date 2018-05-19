@@ -39,8 +39,8 @@ template<class T>
 class interprocess_future
 {
   public:
-    interprocess_future(std::istream& is)
-      : is_(is), result_or_exception_(T()), is_ready_(false)
+    interprocess_future(post_office& po, post_office::address_type address)
+      : post_office_(po), address_(address), result_or_exception_(T()), is_ready_(false)
     {}
 
     interprocess_future(interprocess_future&&) = default;
@@ -88,11 +88,8 @@ class interprocess_future
 
       if(!is_ready())
       {
-        {
-          input_archive ar(is_);
-
-          ar(*result_or_exception_);
-        }
+        using state_type = variant<T,interprocess_exception>;
+        *result_or_exception_ = post_office_.blocking_receive<state_type>(address_);
 
         is_ready_ = true;
       }
@@ -104,7 +101,8 @@ class interprocess_future
     }
 
   private:
-    std::istream& is_;
+    post_office& post_office_;
+    post_office::address_type address_;
     optional<variant<T,interprocess_exception>> result_or_exception_;
     bool is_ready_;
 };

@@ -27,42 +27,73 @@
 #pragma once
 
 #include <iostream>
+#include <string>
+#include <stdexcept>
+#include "serialization.hpp"
 
-#include "variant.hpp"
-#include "interprocess_exception.hpp"
-#include "post_office.hpp"
 
-
-template<class T>
-class interprocess_promise
+// XXX next step: figure out how to make mailboxes work
+// XXX we probably need two types: one for sending and one for receiving
+class post_office
 {
   public:
-    interprocess_promise(std::ostream& os, post_office::address_type receiver_address)
-      : os_(os), receiver_address_(receiver_address)
+    using address_type = std::string*;
+
+    post_office(std::istream& is)
+      : is_(is)
     {}
 
-    void set_value(const T& value)
+    address_type make_new_address()
     {
-      output_archive ar(os_);
-
-      // wrap the value in a variant before transmitting
-      variant<T,interprocess_exception> value_or_exception = value;
-
-      post_office::send(os_, receiver_address_, std::move(value_or_exception));
+      return new std::string();
     }
 
-    void set_exception(const interprocess_exception& exception)
+    bool available(address_type address) const
     {
-      output_archive ar(os_);
+      return !address->empty();
+    }
 
-      // wrap the exception in a variant before transmitting
-      variant<T,interprocess_exception> value_or_exception = exception;
+    template<class T>
+    T blocking_receive(address_type address)
+    {
+      if(address->empty() and !block_and_sort_available_messages_until(address))
+      {
+        throw std::runtime_error("mailbox empty");
+      }
 
-      post_office::send(os_, receiver_address_, std::move(value_or_exception));
+      std::string result = std::move(*address);
+
+      delete address;
+
+      return from_string<T>(result);
+    }
+
+    template<class T>
+    static void send(std::ostream& os, address_type address, const T& value)
+    {
+      output_archive ar(os);
+      ar(address, to_string(value));
     }
 
   private:
-    std::ostream& os_;
-    post_office::address_type receiver_address_;
+    bool block_and_sort_available_messages_until(address_type address)
+    {
+      address_type current_address = nullptr;
+      std::string message;
+
+      while(is_ and current_address != address)
+      {
+        // deserialize the next piece of mail
+        input_archive ar(is_);
+        ar(current_address, message);
+
+        // sort the message into the right mailbox
+        *current_address = std::move(message);
+      }
+
+      return address == current_address;
+    }
+
+    std::istream& is_;
 };
 

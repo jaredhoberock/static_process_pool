@@ -27,6 +27,7 @@
 #include "process.hpp"
 #include "socket.hpp"
 #include "file_descriptor_stream.hpp"
+#include "post_office.hpp"
 #include "interprocess_future.hpp"
 #include "interprocess_promise.hpp"
 
@@ -55,6 +56,9 @@ class static_process_pool
 
         // turn that socket into an istream
         istream_ptrs_.emplace_back(new file_descriptor_istream(reader.release()));
+
+        // create a post office for receiving from this process
+        post_offices_.emplace_back(*istream_ptrs_.back());
 
         // receive a message from the process which, when activated,
         // creates a new ostream connected to the process
@@ -222,9 +226,9 @@ class static_process_pool
     };
 
     template<class Function>
-    static void invoke_function_and_fulfill_promise_connected_to_ostream(Function f, std::ostream& os)
+    static void invoke_function_and_fulfill_promise_connected_to_ostream(Function f, post_office::address_type receiver_address, std::ostream& os)
     {
-      interprocess_promise<int> promise(os);
+      interprocess_promise<int> promise(os, receiver_address);
 
       try
       {
@@ -248,18 +252,22 @@ class static_process_pool
       ++next_worker_;
       next_worker_ %= processes_.size();
 
+      // create a mailbox to receive our result
+      post_office::address_type address = post_offices_[selected_process].make_new_address();
+
       // create an active message which, when activated on the remote process,
       // invokes f and fulfills a promise connected to the process's ostream
-      basic_active_message<void,std::ostream&> message(invoke_function_and_fulfill_promise_connected_to_ostream<typename std::decay<Function>::type>, std::forward<Function>(f));
+      basic_active_message<void,std::ostream&> message(invoke_function_and_fulfill_promise_connected_to_ostream<typename std::decay<Function>::type>, std::forward<Function>(f), address);
       execute_active_message_on_process(selected_process, std::move(message));
 
       // create a future connected to the remote process
-      return interprocess_future<int>(*istream_ptrs_[selected_process]);
+      return interprocess_future<int>(post_offices_[selected_process], address);
     }
 
     std::vector<process> processes_;
     std::vector<std::unique_ptr<std::ostream>> ostream_ptrs_;
     std::vector<std::unique_ptr<std::istream>> istream_ptrs_;
+    std::vector<post_office> post_offices_;
     std::size_t next_worker_;
 };
 
