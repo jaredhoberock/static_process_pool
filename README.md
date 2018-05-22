@@ -44,3 +44,15 @@ int main()
 }
 ```
 
+Program output:
+
+```
+$ clang -std=c++14 -lstdc++ demo.cpp 
+$ ./a.out 
+hello world from process 7330
+hello world from process 7331
+making int on process 7332
+main(): got int 13
+main() exiting
+
+```
