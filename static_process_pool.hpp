@@ -114,7 +114,6 @@ class static_process_pool
     class executor_type
     {
       public:
-
         template<class Function>
         void execute(Function&& f) const noexcept
         {
@@ -125,6 +124,11 @@ class static_process_pool
         auto twoway_execute(Function&& f) const noexcept
         {
           return pool_.twoway_execute(which_process_, std::forward<Function>(f));
+        }
+
+        serializing_binder query(binder_t) const
+        {
+          return serializing_binder{};
         }
 
       private:

@@ -203,5 +203,30 @@ class basic_serializable_function
     std::string serialized_;
 };
 
+
+struct serializing_binder
+{
+  template<class Function, class... Args,
+           // must be able to serialize and deserialize all the arguments
+           __REQUIRES(can_serialize_all<Function,Args...>::value),
+           __REQUIRES(can_deserialize_all<Function,Args...>::value),
+
+           // the function needs to be invocable with the given args
+           __REQUIRES(
+             is_invocable<Function,Args...>::value
+           ),
+
+           // the result of the function also needs to be deserializable (or it needs to be void)
+           class Result = invoke_result_t<Function,Args...>,
+           __REQUIRES(
+             can_deserialize<Result>::value or std::is_void<Result>::value
+           )>
+  basic_serializable_function<Result>
+    operator()(Function&& f, Args&&... args) const
+  {
+    return basic_serializable_function<Result>(std::forward<Function>(f), std::forward<Args>(args)...);
+  }
+};
+
 using serializable_function = basic_serializable_function<any>;
 

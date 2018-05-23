@@ -226,20 +226,9 @@ class new_posix_process_executor
       return last_created_process_hostname_;
     }
 
-    struct binder
+    serializing_binder query(binder_t) const
     {
-      template<class Function, class... Args>
-      basic_serializable_function<invoke_result_t<Function,Args...>>
-        operator()(Function&& f, Args&&... args) const
-      {
-        using result_type = invoke_result_t<Function,Args...>;
-        return basic_serializable_function<result_type>(std::forward<Function>(f), std::forward<Args>(args)...);
-      }
-    };
-
-    binder query(binder_t) const
-    {
-      return binder{};
+      return serializing_binder{};
     };
 
     template<class Function>
