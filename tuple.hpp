@@ -31,6 +31,7 @@
 #include <type_traits>
 
 #include "integer_sequence.hpp"
+#include "invoke_result.hpp"
 
 
 template<size_t... Indices, class T, class... Ts>
@@ -67,54 +68,6 @@ static auto apply(Function&& f, Tuple&& t) ->
   static constexpr size_t num_args = std::tuple_size<typename std::decay<Tuple>::type>::value;
   return apply_impl(make_index_sequence<num_args>(), std::forward<Function>(f), std::forward<Tuple>(t));
 }
-
-
-template<class Function, class... Args>
-struct invoke_result
-{
-  using type = decltype(std::declval<Function>()(std::declval<Args>()...));
-};
-
-template<class Function, class... Args>
-using invoke_result_t = typename invoke_result<Function,Args...>::type;
-
-
-template<class Result, class Function, class... Args>
-struct is_invocable_r_impl
-{
-  template<class F,
-           class R = decltype(std::declval<F>()(std::declval<Args>()...)),
-           class = typename std::enable_if<
-             std::is_convertible<R,Result>::value
-           >::type
-          >
-  static std::true_type test(int);
-
-  template<class>
-  static std::false_type test(...);
-
-  using type = decltype(test<Function>(0));
-};
-
-template<class Result, class Function, class... Args>
-using is_invocable_r = typename is_invocable_r_impl<Result, Function, Args...>::type;
-
-template<class Function, class... Args>
-struct is_invocable_impl
-{
-  template<class F,
-           class Result = decltype(std::declval<F>()(std::declval<Args>()...))
-          >
-  static std::true_type test(int);
-
-  template<class>
-  static std::false_type test(...);
-
-  using type = decltype(test<Function>(0));
-};
-
-template<class Function, class... Args>
-using is_invocable = typename is_invocable_impl<Function, Args...>::type;
 
 
 template<class Function, class Tuple>
