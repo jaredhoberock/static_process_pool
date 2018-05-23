@@ -56,21 +56,17 @@ class post_office
     {
       public:
         mailbox(post_office& po)
-          : post_office_(po), address_(post_office_.new_address())
+          : post_office_(&po), address_(post_office_->new_address())
         {}
 
-        mailbox(mailbox&& other)
-          : post_office_(other.post_office_),
-            address_(nullptr)
-        {
-          std::swap(address_, other.address_);
-        }
+        mailbox(mailbox&&) = default;
+        mailbox& operator=(mailbox&&) = default;
 
         ~mailbox()
         {
           if(valid())
           {
-            post_office_.delete_address(address());
+            post_office_->delete_address(address());
           }
         }
 
@@ -92,7 +88,7 @@ class post_office
         T receive()
         {
           // deliver the result
-          T result = post_office_.deliver<T>(address());
+          T result = post_office_->deliver<T>(address());
 
           // invalidate
           address_ = nullptr;
@@ -101,7 +97,8 @@ class post_office
         }
 
       private:
-        post_office& post_office_;
+        // this is a pointer instead of a reference to enable moves
+        post_office* post_office_;
         address_type address_;
     };
 
