@@ -35,6 +35,7 @@
 #include <utility>
 #include <algorithm>
 
+#include "invoke_result.hpp"
 #include "serialization.hpp"
 #include "active_message.hpp"
 
@@ -227,11 +228,12 @@ class new_posix_process_executor
 
     struct binder
     {
-      // XXX this should instantiate basic_serializable_function with the type of f's result
       template<class Function, class... Args>
-      serializable_function operator()(Function&& f, Args&&... args) const
+      basic_serializable_function<invoke_result_t<Function,Args...>>
+        operator()(Function&& f, Args&&... args) const
       {
-        return serializable_function(std::forward<Function>(f), std::forward<Args>(args)...);
+        using result_type = invoke_result_t<Function,Args...>;
+        return basic_serializable_function<result_type>(std::forward<Function>(f), std::forward<Args>(args)...);
       }
     };
 
