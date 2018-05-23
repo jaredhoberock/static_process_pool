@@ -62,7 +62,7 @@ int main()
   size_t n = 1 << 20;
   size_t tile_size = n / num_processes;
 
-  // allocate tiled vectors x, y, & z on each process
+  // allocate a tile of vectors x, y, & z on each process
   std::vector<float*> x, y, z;
   for(size_t i = 0; i < num_processes; ++i)
   {
