@@ -93,7 +93,8 @@ int main()
   // check results
   for(size_t i = 0; i < num_processes; ++i)
   {
-    assert(async_count(pool.executor(i), z[i], tile_size, 3.f).get());
+    size_t num_threes = async_count(pool.executor(i), z[i], tile_size, 3.0f).get();
+    assert(tile_size == num_threes);
   }
 
   // deallocate each tile
