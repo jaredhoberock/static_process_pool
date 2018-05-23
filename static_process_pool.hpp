@@ -140,6 +140,11 @@ class static_process_pool
 
     executor_type executor(size_t which_process)
     {
+      if(which_process >= processes_.size())
+      {
+        throw std::runtime_error("static_process_pool::executor(): Invalid process index.");
+      }
+
       return executor_type{*this, which_process};
     }
 
