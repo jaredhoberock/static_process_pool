@@ -114,31 +114,45 @@ class static_process_pool
     class executor_type
     {
       public:
+
         template<class Function>
         void execute(Function&& f) const noexcept
         {
-          pool_.execute(std::forward<Function>(f));
+          pool_.execute(which_process_, std::forward<Function>(f));
         }
 
         template<class Function>
         auto twoway_execute(Function&& f) const noexcept
         {
-          return pool_.twoway_execute(std::forward<Function>(f));
+          return pool_.twoway_execute(which_process_, std::forward<Function>(f));
         }
 
       private:
         friend class static_process_pool;
 
-        executor_type(static_process_pool& pool)
-          : pool_(pool)
+        executor_type(static_process_pool& pool, size_t which_process)
+          : pool_(pool), which_process_(which_process)
         {}
 
         static_process_pool& pool_;
+        size_t which_process_;
     };
+
+    executor_type executor(size_t which_process)
+    {
+      return executor_type{*this, which_process};
+    }
 
     executor_type executor() noexcept
     {
-      return executor_type{*this};
+      // select a process on which to execute
+      std::size_t selected_process = next_worker_;
+
+      // round robin through workers
+      ++next_worker_;     
+      next_worker_ %= processes_.size();
+
+      return executor(selected_process);
     }
 
   private:
@@ -208,21 +222,14 @@ class static_process_pool
     }
 
     template<class Function>
-    void execute(Function&& f)
+    void execute(size_t which_process, Function&& f)
     {
-      // select a process on which to execute
-      std::size_t selected_process = next_worker_;
-
-      // round robin through workers
-      ++next_worker_;     
-      next_worker_ %= processes_.size();
-
       // turn f into an active_message
       // give f an ostream& parameter which will be ignored when invoked on the server
       basic_active_message<void,std::ostream&> message(ignore_ostream_and_invoke<typename std::decay<Function>::type>, std::forward<Function>(f));
 
       // execute the message on the selected process
-      execute_active_message_on_process(selected_process, message);
+      execute_active_message_on_process(which_process, message);
     };
 
     template<class Result, class Function>
@@ -246,25 +253,18 @@ class static_process_pool
     interprocess_future<
       invoke_result_t<typename std::decay<Function>::type>
     >
-      twoway_execute(Function&& f)
+      twoway_execute(size_t which_process, Function&& f)
     {
       using result_type = invoke_result_t<typename std::decay<Function>::type>;
 
-      // select a process on which to execute
-      std::size_t selected_process = next_worker_;
-
-      // round robin through workers
-      ++next_worker_;
-      next_worker_ %= processes_.size();
-
       // create a future to receive our result
-      interprocess_future<result_type> future_result(post_offices_[selected_process]);
+      interprocess_future<result_type> future_result(post_offices_[which_process]);
 
       // create an active message which, when executed on the remote process,
       // invokes f and fulfills a promise connected to this future
       auto execute_me_remotely = invoke_function_and_fulfill_promise_connected_to_ostream<result_type, typename std::decay<Function>::type>;
       basic_active_message<void,std::ostream&> message(execute_me_remotely, std::forward<Function>(f), future_result.identity());
-      execute_active_message_on_process(selected_process, std::move(message));
+      execute_active_message_on_process(which_process, std::move(message));
 
       // return the future
       return future_result;
