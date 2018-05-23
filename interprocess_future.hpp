@@ -45,6 +45,7 @@ class interprocess_future
     {}
 
     interprocess_future(interprocess_future&&) = default;
+    interprocess_future& operator=(interprocess_future&&) = default;
 
     interprocess_future(const interprocess_future&) = delete;
 
