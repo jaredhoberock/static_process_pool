@@ -59,7 +59,12 @@ class post_office
           : post_office_(&po), address_(post_office_->new_address())
         {}
 
-        mailbox(mailbox&&) = default;
+        mailbox(mailbox&& other)
+          : post_office_(nullptr), address_(nullptr)
+        {
+          std::swap(post_office_, other.post_office_);
+          std::swap(address_, other.address_);
+        }
 
         mailbox& operator=(mailbox&& other) noexcept
         {
