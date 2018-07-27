@@ -285,6 +285,12 @@ class input_archive
 };
 
 
+// put any in a namespace because the identifier collides
+// with a function CUDA puts in the global namespace
+namespace detail
+{
+
+
 class any;
 
 template<class ValueType>
@@ -345,6 +351,9 @@ void deserialize(InputArchive& ar, any& a)
 {
   ar.stream() >> a;
 }
+
+
+} // end detail
 
 
 template<class... Conditions>

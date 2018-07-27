@@ -94,7 +94,7 @@ class basic_serializable_function
              // the function needs to be invocable with the given args and return the expected result type
              __REQUIRES(
                is_invocable_r<Result,Function,BoundArgs...,UnboundArgs...>::value or
-               is_invocable_r<void,Function,BoundArgs...,UnboundArgs...>::value and std::is_same<Result,any>::value
+               is_invocable_r<void,Function,BoundArgs...,UnboundArgs...>::value and std::is_same<Result,detail::any>::value
              )
             >
     explicit basic_serializable_function(Function func, BoundArgs... args)
@@ -158,14 +158,14 @@ class basic_serializable_function
     template<class Function, class Tuple,
              __REQUIRES(
                std::is_void<apply_result_t<Function, Tuple>>::value and
-               std::is_same<Result, any>::value
+               std::is_same<Result, detail::any>::value
              )>
-    static any apply_and_return_result(Function&& f, Tuple&& t)
+    static detail::any apply_and_return_result(Function&& f, Tuple&& t)
     {
       apply(std::forward<Function>(f), std::forward<Tuple>(t));
 
       // an empty any object stands in for a void result
-      return any{};
+      return detail::any{};
     }
 
     template<class Function, class... BoundArgs>
@@ -228,5 +228,5 @@ struct serializing_binder
   }
 };
 
-using serializable_function = basic_serializable_function<any>;
+using serializable_function = basic_serializable_function<detail::any>;
 

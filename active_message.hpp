@@ -47,7 +47,7 @@ class basic_active_message
              // the function needs to be invocable with the given args and return the expected result type
              __REQUIRES(
                is_invocable_r<Result,Function,BoundArgs...,UnboundArgs...>::value or
-               is_invocable_r<void,Function,BoundArgs...,UnboundArgs...>::value and std::is_same<Result,any>::value
+               is_invocable_r<void,Function,BoundArgs...,UnboundArgs...>::value and std::is_same<Result,detail::any>::value
              )
             >
     explicit basic_active_message(Function func, BoundArgs... args)
@@ -106,7 +106,7 @@ basic_active_message<
 }
 
 
-using active_message = basic_active_message<any>;
+using active_message = basic_active_message<detail::any>;
 
 
 class two_sided_active_message : private active_message
@@ -163,7 +163,7 @@ class two_sided_active_message : private active_message
 
     active_message activate() const
     {
-      return any_cast<active_message>(super_t::activate());
+      return detail::any_cast<active_message>(super_t::activate());
     }
 
     template<class OutputArchive>
