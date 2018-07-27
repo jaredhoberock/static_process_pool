@@ -33,6 +33,7 @@
 #include <typeinfo>
 #include <sstream>
 #include <cstring>
+#include <array>
 #include "string_view_stream.hpp"
 #include "tuple.hpp"
 #include "variant.hpp"
@@ -67,6 +68,17 @@ void serialize(OutputArchive& ar, const std::string& s)
 
   // output the bytes
   ar.stream().write(s.data(), s.size());
+}
+
+
+template<class OutputArchive, class T, size_t N>
+void serialize(OutputArchive& ar, const std::array<T,N>& a)
+{
+  // serialize each element
+  for(const auto& e : a)
+  {
+    serialize(ar, e);
+  }
 }
 
 
@@ -111,6 +123,17 @@ void deserialize(InputArchive& ar, std::string& s)
 
   // read characters from the stream
   ar.stream().read(&s.front(), length);
+}
+
+
+template<class InputArchive, class T, size_t N>
+void deserialize(InputArchive& ar, std::array<T,N>& a)
+{
+  // deserialize each element
+  for(auto& e : a)
+  {
+    deserialize(ar, e);
+  }
 }
 
 
