@@ -227,7 +227,7 @@ void deserialize_variant_impl(InputArchive& ar, size_t index, variant<Ts...>& v)
     variant_alternative_t<i, variant<Ts...>> value;
     ar(value);
 
-    v = value;
+    v = std::move(value);
   }
   else
   {
