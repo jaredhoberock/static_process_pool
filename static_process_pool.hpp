@@ -250,7 +250,11 @@ class static_process_pool
       {
         auto value = f();
 
-        promise.set_value(value);
+        promise.set_value(std::move(value));
+      }
+      catch(std::exception& e)
+      {
+        promise.set_exception(interprocess_exception(e.what()));
       }
       catch(...)
       {
