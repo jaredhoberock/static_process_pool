@@ -56,6 +56,16 @@ class interprocess_promise
       post_office::post(os_, receiver_address_, std::move(value_or_exception));
     }
 
+    void set_value(T&& value)
+    {
+      output_archive ar(os_);
+
+      // wrap the value in a variant before transmitting
+      variant<T,interprocess_exception> value_or_exception = std::move(value);
+
+      post_office::post(os_, receiver_address_, std::move(value_or_exception));
+    }
+
     void set_exception(const interprocess_exception& exception)
     {
       output_archive ar(os_);
